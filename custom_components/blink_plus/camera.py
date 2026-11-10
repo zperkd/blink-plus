@@ -1,7 +1,31 @@
 """Native H.264/AAC cameras; cached stills never wake a camera."""
 
+import logging
+
 from homeassistant.components.camera import Camera, CameraEntityFeature
 from .entity import BlinkEntity
+
+_LOGGER = logging.getLogger(__name__)
+
+
+class _NoPreload:
+    """HA's per-camera stream settings with stream preloading forced off.
+
+    Preloading keeps a stream running with no viewer, which would wake an
+    on-demand cloud camera again after every session limit, indefinitely.
+    """
+
+    __slots__ = ("_settings",)
+
+    def __init__(self, settings):
+        object.__setattr__(self, "_settings", settings)
+
+    def __getattr__(self, name):
+        return False if name == "preload_stream" else getattr(self._settings, name)
+
+    def __setattr__(self, name, value):
+        if name != "preload_stream":
+            setattr(self._settings, name, value)
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -33,7 +57,23 @@ class BlinkCamera(BlinkEntity, Camera):
             return None
         return await self.coordinator.relay(self.camera).source()
 
+    async def async_create_stream(self):
+        stream = await super().async_create_stream()
+        if stream and not isinstance(stream.dynamic_stream_settings, _NoPreload):
+            if stream.dynamic_stream_settings.preload_stream:
+                _LOGGER.warning(
+                    "Preload stream is ignored for %s: Blink live view starts on demand",
+                    self.entity_id,
+                )
+            stream.dynamic_stream_settings = _NoPreload(stream.dynamic_stream_settings)
+        return stream
+
+    async def async_added_to_hass(self):
+        await super().async_added_to_hass()
+        self.coordinator.camera_entities[str(self.camera.serial)] = self
+
     async def async_will_remove_from_hass(self):
+        self.coordinator.camera_entities.pop(str(self.camera.serial), None)
         if self.stream:
             self.stream.dynamic_stream_settings.preload_stream = False
             for provider in list(self.stream.outputs().values()):

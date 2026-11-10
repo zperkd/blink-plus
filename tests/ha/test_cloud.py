@@ -124,6 +124,7 @@ async def test_media_download_cache_and_unload(hass, account, blink):
     ):
         path1, path2 = await asyncio.gather(cloud.file("1"), cloud.file("1"))
         assert path1 == path2 and path1.is_file()
+        assert not cloud.file_locks and not cloud.file_users
         blink.auth.query.assert_awaited_once()
         assert blink.auth.query.call_args.kwargs["headers"] == {
             "TOKEN_AUTH": "test-secret"

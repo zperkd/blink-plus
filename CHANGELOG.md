@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.2 - 2026-11-10
+
+Hardening release. No new features and no option or entity changes.
+
+- Changed: Home Assistant's per-camera **Preload stream** setting is now ignored for Blink Plus cameras. With it on, a camera was woken again after every session limit and cooldown, indefinitely, with nobody watching. A warning is logged when the setting is found enabled. A camera with the setting on may still start one short session when Home Assistant starts.
+- Added: live view checks that the installed blinkpy still provides what the relay builds on, and otherwise fails with a clear `incompatible_blinkpy` error. A contract test and a CI job against the newest blinkpy release warn about upstream changes early.
+- Changed: local recording finds its camera entity through the integration's own registry instead of Home Assistant internals.
+- Fixed: per-clip download locks are released once no request uses them, instead of accumulating for every clip ever opened.
+
+Validation: 66 automated tests plus official HACS and hassfest checks. No new live camera tests were run for this release; the live results in [docs/VALIDATION.md](docs/VALIDATION.md) are from 0.1.0.
+
 ## 0.1.1 - 2026-11-10
 
 Bug-fix release. No new features and no option or entity changes.

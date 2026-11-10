@@ -215,3 +215,36 @@ async def test_local_recording_rejects_short_session(hass, account, blink, tmp_p
         await account.runtime_data.record_local(blink.cameras["Test camera"])
     blink.cameras["Test camera"].init_livestream.assert_not_awaited()
     await hass.config_entries.async_unload(account.entry_id)
+
+
+async def test_preload_stream_is_forced_off(hass, account, blink, socket_enabled):
+    await hass.config_entries.async_setup(account.entry_id)
+    from homeassistant.components.camera import get_camera_from_entity_id
+    from homeassistant.components.camera.const import DATA_CAMERA_PREFS
+
+    await hass.data[DATA_CAMERA_PREFS].async_update(
+        "camera.test_camera", preload_stream=True
+    )
+    camera = get_camera_from_entity_id(hass, "camera.test_camera")
+    stream = await camera.async_create_stream()
+    settings = stream.dynamic_stream_settings
+    assert settings.preload_stream is False
+    settings.preload_stream = True
+    assert settings.preload_stream is False
+    stored = await hass.data[DATA_CAMERA_PREFS].get_dynamic_stream_settings(
+        "camera.test_camera"
+    )
+    assert stored.preload_stream is True
+    assert settings.orientation == stored.orientation
+    assert await camera.async_create_stream() is stream
+    assert stream.dynamic_stream_settings is settings
+    blink.cameras["Test camera"].init_livestream.assert_not_awaited()
+    await hass.config_entries.async_unload(account.entry_id)
+
+
+async def test_camera_entity_registry_follows_lifecycle(hass, account, blink):
+    await hass.config_entries.async_setup(account.entry_id)
+    coordinator = account.runtime_data
+    assert coordinator.camera_entities["TEST123"].entity_id == "camera.test_camera"
+    await hass.config_entries.async_unload(account.entry_id)
+    assert not coordinator.camera_entities

@@ -76,6 +76,7 @@ class CloudClips:
         self.updated = None
         self.lock = asyncio.Lock()
         self.file_locks = {}
+        self.file_users = {}
         self.temp = None
         self.closed = False
         self.transfers = asyncio.Semaphore(2)
@@ -143,11 +144,18 @@ class CloudClips:
     async def file(self, clip_id, thumbnail=False):
         task = asyncio.current_task()
         self.tasks.add(task)
+        key = str(clip_id) + ("t" if thumbnail else "v")
+        self.file_users[key] = self.file_users.get(key, 0) + 1
         try:
             async with self.transfers:
                 return await self._file(clip_id, thumbnail)
         finally:
             self.tasks.discard(task)
+            self.file_users[key] -= 1
+            if not self.file_users[key]:
+                # No request is using or waiting for this clip's lock any more.
+                del self.file_users[key]
+                self.file_locks.pop(key, None)
 
     async def _file(self, clip_id, thumbnail=False):
         row = await self.lookup(clip_id)

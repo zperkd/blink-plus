@@ -21,9 +21,11 @@ flowchart LR
 
 Each camera receives an ephemeral TCP listener bound to loopback. The upstream live session starts when a player connects, rather than when HA loads. Viewers of that camera share its upstream. Different cameras have independent relays. Blink's framing is decoded into MPEG-TS without converting every frame to a JPEG.
 
-The relay scopes a compatibility fix to each connection, validates payload lengths, bounds client writes, and cleans up disconnects. Session duration and reconnect cooldown constrain repeated cloud/camera use. Native video preserves the camera's actual resolution and frame rate; HA stream probing and HLS buffering still contribute to startup time.
+The relay scopes a compatibility fix to each connection, validates payload lengths, bounds client writes, and cleans up disconnects. Session duration and reconnect cooldown constrain repeated cloud/camera use. HA's per-camera preload setting is forced off for these streams, so a stream with no viewer idles out instead of restarting. Native video preserves the camera's actual resolution and frame rate; HA stream probing and HLS buffering still contribute to startup time.
 
 The native transport inherits blinkpy 0.25.9's IMMI TLS behavior, including its disabled certificate verification on that live connection. REST requests use HA's aiohttp session. This implementation does not claim end-to-end verified TLS for the native live transport.
+
+The relay builds on blinkpy's live stream object, which is not a stable public interface, and Home Assistant decides which blinkpy version is installed. Before starting a session the relay checks that the object still has the parts it uses; if not, live view fails with a clear `incompatible_blinkpy` error instead of misbehaving. A contract test and a CI job against the newest blinkpy release give early warning.
 
 ## Local MP4 recording
 

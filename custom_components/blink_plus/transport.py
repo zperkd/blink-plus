@@ -10,6 +10,8 @@ from types import MethodType
 
 _LOGGER = logging.getLogger(__name__)
 MAX_PAYLOAD = 8 * 1024 * 1024
+# The parts of blinkpy's live stream object this relay builds on.
+REQUIRED = ("feed", "recv", "stop", "clients", "target_reader", "target_writer")
 
 
 async def recv_packets(stream):
@@ -121,6 +123,14 @@ class NativeRelay:
             try:
                 async with asyncio.timeout(20):
                     upstream = await self.camera.init_livestream()
+                    if not all(hasattr(upstream, name) for name in REQUIRED):
+                        upstream = None
+                        self.last_error = "incompatible_blinkpy"
+                        _LOGGER.error(
+                            "The installed blinkpy version is not compatible with "
+                            "Blink Plus live view; check for a Blink Plus update"
+                        )
+                        return
                     upstream.recv = MethodType(recv_packets, upstream)
                     # Reuse blinkpy's protocol/auth/keepalive, but not its TCP listener.
                     async with self.lock:

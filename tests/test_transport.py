@@ -130,6 +130,23 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await relay.close()
 
+    async def test_incompatible_blinkpy_is_reported(self):
+        class Camera:
+            async def init_livestream(self):
+                return SimpleNamespace(feed=None, stop=None)
+
+        relay = transport.NativeRelay(Camera(), cooldown=1)
+        try:
+            port = int((await relay.source()).rsplit(":", 1)[1])
+            reader, writer = await asyncio.open_connection("127.0.0.1", port)
+            self.assertEqual(await asyncio.wait_for(reader.read(), 2), b"")
+            writer.close()
+            await writer.wait_closed()
+            self.assertEqual(relay.last_error, "incompatible_blinkpy")
+            self.assertEqual(relay.starts, 0)
+        finally:
+            await relay.close()
+
     async def test_pan_tilt_requires_active_session(self):
         relay = transport.NativeRelay(SimpleNamespace())
         with self.assertRaises(RuntimeError):
@@ -148,7 +165,11 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_two_viewers_share_one_session_and_reopen(self):
         class Stream:
+            target_reader = None
             target_writer = None
+
+            async def recv(self):
+                pass
 
             def __init__(self):
                 self.clients = []
@@ -208,7 +229,11 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_session_duration_closes_viewer(self):
         class Stream:
+            target_reader = None
             target_writer = None
+
+            async def recv(self):
+                pass
 
             def __init__(self):
                 self.clients = []

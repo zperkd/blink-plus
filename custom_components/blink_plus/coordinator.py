@@ -59,6 +59,7 @@ class BlinkCoordinator(DataUpdateCoordinator):
         )
         self.cloud = CloudClips(hass, self.api, self.options, self.auth_error)
         self.relays = {}
+        self.camera_entities = {}
         self.recording = set()
         self.local_recordings = {}
         self.control_lock = asyncio.Lock()
@@ -163,14 +164,7 @@ class BlinkCoordinator(DataUpdateCoordinator):
             raise HomeAssistantError(
                 "A local recording is already running for this camera"
             )
-        entity = next(
-            (
-                entity
-                for entity in self.hass.data["camera"].entities
-                if getattr(entity, "camera", None) is camera
-            ),
-            None,
-        )
+        entity = self.camera_entities.get(key)
         if entity is None:
             raise HomeAssistantError("The camera entity is unavailable")
         media_roots = self.hass.config.media_dirs

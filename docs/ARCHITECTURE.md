@@ -1,6 +1,6 @@
 # How Blink Plus works
 
-Blink Plus is a single Home Assistant config-entry integration using `blinkpy==0.25.9`. HA owns credentials, polling, entities, stream players, and media browsing. No separate relay service, Android app, external container, or exposed network port is required.
+Blink Plus is a single Home Assistant config-entry integration requiring `blinkpy>=0.25.9` (tested with 0.25.9; HA may select a newer compatible dependency). HA owns credentials, polling, entities, stream players, and media browsing. No separate relay service, Android app, external container, or exposed network port is required.
 
 ## Setup and lifecycle
 

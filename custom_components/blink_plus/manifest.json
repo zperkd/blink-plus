@@ -1,0 +1,24 @@
+{
+    "domain":  "blink_plus",
+    "name":  "Blink Plus",
+    "codeowners":  [
+                       "@zperkd"
+                   ],
+    "config_flow":  true,
+    "dependencies":  [
+                         "http",
+                         "media_source",
+                         "stream"
+                     ],
+    "documentation":  "https://github.com/zperkd/blink-plus",
+    "integration_type":  "hub",
+    "iot_class":  "cloud_polling",
+    "issue_tracker":  "https://github.com/zperkd/blink-plus/issues",
+    "loggers":  [
+                    "blinkpy"
+                ],
+    "requirements":  [
+                         "blinkpy==0.25.9"
+                     ],
+    "version":  "0.1.0"
+}

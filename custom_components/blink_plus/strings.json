@@ -1,0 +1,61 @@
+{
+    "title":  "Blink Plus",
+    "config":  {
+                   "step":  {
+                                "user":  {
+                                             "title":  "Connect to Blink",
+                                             "description":  "Sign in to your Blink account. Your password is used for authentication and is not stored by Blink Plus.",
+                                             "data":  {
+                                                          "username":  "Email",
+                                                          "password":  "Password"
+                                                      }
+                                         },
+                                "mfa":  {
+                                            "title":  "Verify your Blink account",
+                                            "description":  "Enter the verification code Blink sent you.",
+                                            "data":  {
+                                                         "pin":  "Verification code"
+                                                     }
+                                        }
+                            },
+                   "error":  {
+                                 "invalid_auth":  "Blink rejected these credentials or this code.",
+                                 "cannot_connect":  "Cannot reach Blink. Try again later.",
+                                 "unknown":  "Blink setup failed. Try again later."
+                             },
+                   "abort":  {
+                                 "already_configured":  "This Blink account is already configured.",
+                                 "wrong_account":  "Sign in with the account originally used for this integration.",
+                                 "reauth_successful":  "Blink authentication updated."
+                             }
+               },
+    "options":  {
+                    "step":  {
+                                 "init":  {
+                                              "title":  "Blink Plus settings",
+                                              "description":  "Live sessions start on demand. HA may retain a stream briefly after its viewer closes. Leave stream preloading off, especially for battery cameras. Sensor polling does not wake cameras for fresh snapshots. Select pan/tilt only for cameras with a compatible motorized mount.",
+                                              "data":  {
+                                                           "scan_interval":  "Sensor polling interval (seconds)",
+                                                           "live_enabled":  "Enable live video",
+                                                           "max_live_seconds":  "Maximum live session (seconds)",
+                                                           "reconnect_cooldown":  "Cooldown between live sessions (seconds)",
+                                                           "pan_tilt_cameras":  "Cameras with pan/tilt mounts",
+                                                           "pan_step":  "Pan step (degrees)",
+                                                           "tilt_step":  "Tilt step (degrees)",
+                                                           "invert_pan":  "Invert pan direction",
+                                                           "invert_tilt":  "Invert tilt direction",
+                                                           "recording_seconds":  "Local clip duration (seconds)",
+                                                           "recording_directory":  "Recording folder (blank uses the Home Assistant media folder)",
+                                                           "cloud_refresh_seconds":  "Cloud list cache (seconds)",
+                                                           "cloud_history_days":  "Cloud clip history (days)",
+                                                           "cloud_cache_mb":  "Downloaded cloud media cache (MB)",
+                                                           "cloud_max_clips":  "Maximum cloud clips listed",
+                                                           "cloud_enabled":  "Enable cloud clip browsing"
+                                                       }
+                                          }
+                             },
+                    "error":  {
+                                  "invalid_options":  "Choose values within the displayed limits and select existing cameras."
+                              }
+                }
+}

@@ -1,0 +1,16 @@
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.venv/
+.ha-venv/
+.tools/
+.validation/
+.validation-core/
+.browser-assets/
+dist/
+*.pyc
+*.zip
+*.bundle
+.env
+secrets*
+*token*.json

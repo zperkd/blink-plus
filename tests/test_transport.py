@@ -146,7 +146,7 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(writer.data[13], 69)
         self.assertEqual(writer.data[14], 156)
 
-    async def test_two_viewers_share_one_session_and_cooldown(self):
+    async def test_two_viewers_share_one_session_and_reopen(self):
         class Stream:
             target_writer = None
 
@@ -195,10 +195,11 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                     break
                 await asyncio.sleep(0.01)
             self.assertIsNone(relay.runner)
+            # A normal close does not start the cooldown: reopening works at once.
             r3, w3 = await asyncio.open_connection("127.0.0.1", port)
             writers.append(w3)
-            self.assertEqual(await asyncio.wait_for(r3.read(), 1), b"")
-            self.assertEqual(camera.calls, 1)
+            self.assertTrue(await asyncio.wait_for(r3.read(188), 1))
+            self.assertEqual(camera.calls, 2)
         finally:
             for writer in writers:
                 writer.close()
@@ -220,10 +221,14 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                     writer.close()
 
         class Camera:
+            calls = 0
+
             async def init_livestream(self):
+                self.calls += 1
                 return Stream()
 
-        relay = transport.NativeRelay(Camera(), duration=0.03, cooldown=1)
+        camera = Camera()
+        relay = transport.NativeRelay(camera, duration=0.03, cooldown=5)
         try:
             port = int((await relay.source()).rsplit(":", 1)[1])
             reader, writer = await asyncio.open_connection("127.0.0.1", port)
@@ -231,6 +236,16 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(relay.last_error, "session_limit")
             writer.close()
             await writer.wait_closed()
+            for _ in range(30):
+                if relay.runner is None:
+                    break
+                await asyncio.sleep(0.01)
+            # The time limit starts the cooldown: a reconnect is refused.
+            reader, writer = await asyncio.open_connection("127.0.0.1", port)
+            self.assertEqual(await asyncio.wait_for(reader.read(), 1), b"")
+            writer.close()
+            await writer.wait_closed()
+            self.assertEqual(camera.calls, 1)
         finally:
             await relay.close()
 

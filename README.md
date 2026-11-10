@@ -6,7 +6,7 @@ Native Blink live video and audio, local recording, cloud clip browsing, and cam
 
 [Installation](#installation) | [Options](docs/CONFIGURATION.md) | [How it works](docs/ARCHITECTURE.md) | [Test results](docs/VALIDATION.md) | [Changelog](CHANGELOG.md)
 
-**Initial community release: v0.1.0.** Requires Home Assistant 2026.11.0 or newer and a Blink account. This independent project uses unofficial Blink cloud APIs and is not affiliated with Amazon or Blink.
+**Current release: v0.1.1.** Requires Home Assistant 2026.11.0 or newer and a Blink account. This independent project uses unofficial Blink cloud APIs and is not affiliated with Amazon or Blink.
 
 Live view and cloud browsing are enabled by default. A camera starts streaming when a player connects. Snapshot, recording, motion, arming, and enabled pan/tilt controls can operate your cameras; setup does not automatically arm the system or start recordings. Battery cameras still need to wake and contact Blink's cloud.
 
@@ -40,7 +40,7 @@ HACS must already be installed. UI wording can vary by version. See [HACS custom
 
 ### Manual installation
 
-Download the release's `blink-plus-v0.1.0.zip`. Extract its `custom_components/blink_plus` folder into your HA configuration directory, producing `/config/custom_components/blink_plus/manifest.json`. Restart HA, then follow steps 4-6 above. Do not place the enclosing repository folder inside `custom_components`.
+Download the release's `blink-plus-v0.1.1.zip`. Extract its `custom_components/blink_plus` folder into your HA configuration directory, producing `/config/custom_components/blink_plus/manifest.json`. Restart HA, then follow steps 4-6 above. Do not place the enclosing repository folder inside `custom_components`.
 
 ### Moving from the built-in Blink integration
 

@@ -177,3 +177,28 @@ async def test_mfa_flow(hass, blink):
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert "pin" not in result["data"]
     await hass.async_block_till_done()
+
+
+async def test_token_refresh_does_not_reload(hass, account, blink):
+    await hass.config_entries.async_setup(account.entry_id)
+    await hass.async_block_till_done()
+    coordinator = account.runtime_data
+    coordinator.api.auth = SimpleNamespace(
+        login_attributes={"username": "test@example.com", "token": "refreshed"}
+    )
+    coordinator.save_tokens()
+    await hass.async_block_till_done()
+    assert account.data["token"] == "refreshed"
+    assert account.runtime_data is coordinator
+    await hass.config_entries.async_unload(account.entry_id)
+
+
+async def test_option_change_reloads(hass, account, blink):
+    await hass.config_entries.async_setup(account.entry_id)
+    await hass.async_block_till_done()
+    coordinator = account.runtime_data
+    hass.config_entries.async_update_entry(account, options={"scan_interval": 120})
+    await hass.async_block_till_done()
+    assert account.runtime_data is not coordinator
+    assert account.runtime_data.options["scan_interval"] == 120
+    await hass.config_entries.async_unload(account.entry_id)

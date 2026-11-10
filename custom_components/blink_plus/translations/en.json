@@ -38,7 +38,7 @@
                                                            "scan_interval":  "Sensor polling interval (seconds)",
                                                            "live_enabled":  "Enable live video",
                                                            "max_live_seconds":  "Maximum live session (seconds)",
-                                                           "reconnect_cooldown":  "Cooldown between live sessions (seconds)",
+                                                           "reconnect_cooldown":  "Cooldown after a live session times out or fails (seconds)",
                                                            "pan_tilt_cameras":  "Cameras with pan/tilt mounts",
                                                            "pan_step":  "Pan step (degrees)",
                                                            "tilt_step":  "Tilt step (degrees)",

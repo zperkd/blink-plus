@@ -2,7 +2,7 @@
 
 from homeassistant.helpers import config_validation as cv
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
-from .const import DOMAIN, PLATFORMS
+from .const import DEFAULTS, DOMAIN, PLATFORMS
 from .coordinator import BlinkCoordinator
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
@@ -36,7 +36,9 @@ async def async_setup_entry(hass, entry):
 
 
 async def _reload(hass, entry):
-    await hass.config_entries.async_reload(entry.entry_id)
+    # Saved token refreshes also update the entry; only option changes need a reload.
+    if {**DEFAULTS, **entry.options} != entry.runtime_data.options:
+        await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass, entry):

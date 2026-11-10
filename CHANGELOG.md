@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.1 - 2026-11-10
+
+Bug-fix release. No new features and no option or entity changes.
+
+- Fixed: the integration reloaded itself every time Blink refreshed its login token, which dropped live streams, cleared the cloud clip cache, and briefly made entities unavailable. It now reloads only when options change.
+- Changed: the reconnect cooldown no longer starts when the last viewer closes live view normally, so live view can be reopened immediately. It still applies after a session reaches its time limit, fails, or is ended by the camera.
+- Fixed: a camera that does not start streaming within 20 seconds is now logged and reported in diagnostics as `start_timeout` instead of `session_limit`.
+- Diagnostics report the installed version from the manifest.
+
+Validation: 60 automated tests plus official HACS and hassfest checks. No new live camera tests were run for this release; the live results in [docs/VALIDATION.md](docs/VALIDATION.md) are from 0.1.0.
+
 ## 0.1.0 - 2026-11-10
 
 Initial community release.

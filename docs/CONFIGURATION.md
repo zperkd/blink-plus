@@ -7,7 +7,7 @@ All integration settings are available from **Settings > Devices & services > Bl
 - **Polling interval:** 300 seconds by default; range 60-3600. Controls refresh state after commands; motion otherwise follows polling.
 - **Live view enabled:** on by default. Disable to prevent new live streams and local recordings.
 - **Maximum live duration:** 120 seconds; range 15-300.
-- **Reconnect cooldown:** 30 seconds; range 5-300. Avoid repeated wake-ups when a player keeps reconnecting.
+- **Reconnect cooldown:** 30 seconds; range 5-300. Applies after a session reaches its time limit, fails, or is ended by the camera, so a player that keeps reconnecting cannot wake the camera repeatedly. Closing live view normally does not start the cooldown.
 
 ## Local recording
 

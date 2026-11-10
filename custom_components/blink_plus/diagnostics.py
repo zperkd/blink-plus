@@ -1,10 +1,15 @@
 """Allowlisted diagnostics: no account identifiers, tokens, URLs or serials."""
 
+from homeassistant.loader import async_get_integration
+
+from .const import DOMAIN
+
 
 async def async_get_config_entry_diagnostics(hass, entry):
     coordinator = entry.runtime_data
+    integration = await async_get_integration(hass, DOMAIN)
     return {
-        "version": "0.1.0",
+        "version": str(integration.version),
         "camera_count": len(coordinator.api.cameras),
         "scan_interval": coordinator.options["scan_interval"],
         "live_enabled": coordinator.options["live_enabled"],

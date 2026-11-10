@@ -9,9 +9,11 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 async def async_setup(hass, config):
+    from .live_http import BlinkLiveView
     from .media_source import BlinkCloudView
 
     hass.http.register_view(BlinkCloudView())
+    hass.http.register_view(BlinkLiveView())
     return True
 
 

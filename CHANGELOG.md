@@ -2,13 +2,15 @@
 
 ## 0.1.3 - 2026-11-10
 
-Snapshot reliability, found while moving a seven-camera home to the integration.
+Snapshot reliability and a direct live stream, both from moving a seven-camera home to the integration.
+
+- Added: **direct live stream** at `/api/blink_plus/live/<camera entity id>` for low-delay players. An authenticated client (a long-lived access token, like any Home Assistant API call) receives the camera's native MPEG-TS (H.264 and AAC) as it arrives, without the second or more that HLS packaging adds. It is one more viewer of the camera's relay: session limit, cooldown and sharing apply, and the camera session ends as soon as the last viewer disconnects. Home Assistant's own live view is unchanged.
 
 - Fixed: **Take snapshot** often failed with a timeout on battery cameras and when another Blink request was running. Blink handles one command at a time per network and answers "busy" meanwhile; that answer was treated as accepted, so the button then waited for a picture that was never taken. A busy answer is now retried (three attempts, six seconds apart) and reported clearly if Blink stays busy.
 - Changed: while waiting for the new picture the integration now checks Blink's one-request overview every three seconds instead of running a full refresh every eight. A full refresh also downloads every camera's thumbnail and recent clip, which made the wait slow enough to run into the command timeout. One full refresh still runs once the new picture is listed.
 - Changed: a snapshot that Blink does not publish within about 45 seconds now ends with "Blink did not publish a fresh snapshot in time" instead of a generic failure.
 
-Validation: 70 automated tests plus official HACS and hassfest checks. Snapshots were checked on real cameras with this version; see the release notes.
+Validation: 73 automated tests plus official HACS and hassfest checks. Snapshots were checked on real cameras with this version; see the release notes.
 
 ## 0.1.2 - 2026-11-10
 

@@ -337,3 +337,84 @@ def test_overview_lookup_needs_matching_id_and_name():
     assert blink_busy({"message": "System is busy, please wait", "code": 307})
     assert not blink_busy({"id": 5, "message": "busy"})
     assert not blink_busy(True)
+
+
+class DirectStream:
+    """A fake blinkpy live stream that sends MPEG-TS packets to the relay's clients."""
+
+    target_reader = None
+    target_writer = None
+
+    def __init__(self):
+        self.clients = []
+
+    async def recv(self):
+        pass
+
+    async def feed(self):
+        import asyncio
+
+        while True:
+            for writer in tuple(self.clients):
+                writer.write(b"\x47" + b"x" * 187)
+                await writer.drain()
+            await asyncio.sleep(0.01)
+
+    def stop(self):
+        for writer in tuple(self.clients):
+            writer.close()
+
+
+async def test_direct_live_stream_serves_the_relay(
+    hass, account, blink, hass_client, socket_enabled
+):
+    await hass.config_entries.async_setup(account.entry_id)
+    await hass.async_block_till_done()
+    camera = blink.cameras["Test camera"]
+    camera.init_livestream = AsyncMock(return_value=DirectStream())
+    client = await hass_client()
+    response = await client.get("/api/blink_plus/live/camera.test_camera")
+    assert response.status == 200
+    assert response.headers["Content-Type"] == "video/mp2t"
+    data = await response.content.readexactly(188 * 3)
+    assert data[0] == 0x47 and data[188] == 0x47
+    relay = account.runtime_data.relays["TEST123"]
+    assert relay.starts == 1
+    response.close()
+    for _ in range(100):
+        if relay.runner is None:
+            break
+        import asyncio
+
+        await asyncio.sleep(0.02)
+    assert relay.runner is None  # The viewer left: the camera session ended.
+    await hass.config_entries.async_unload(account.entry_id)
+
+
+async def test_direct_live_stream_refuses_unknown_and_disabled(
+    hass, account, blink, hass_client, hass_client_no_auth
+):
+    hass.config_entries.async_update_entry(account, options={"live_enabled": False})
+    await hass.config_entries.async_setup(account.entry_id)
+    await hass.async_block_till_done()
+    client = await hass_client()
+    assert (await client.get("/api/blink_plus/live/camera.test_camera")).status == 404
+    assert (await client.get("/api/blink_plus/live/camera.nope")).status == 404
+    anonymous = await hass_client_no_auth()
+    assert (
+        await anonymous.get("/api/blink_plus/live/camera.test_camera")
+    ).status == 401
+    blink.cameras["Test camera"].init_livestream.assert_not_awaited()
+    await hass.config_entries.async_unload(account.entry_id)
+
+
+async def test_direct_live_stream_reports_a_camera_that_does_not_start(
+    hass, account, blink, hass_client, socket_enabled
+):
+    await hass.config_entries.async_setup(account.entry_id)
+    await hass.async_block_till_done()
+    blink.cameras["Test camera"].init_livestream = AsyncMock(side_effect=OSError)
+    client = await hass_client()
+    response = await client.get("/api/blink_plus/live/camera.test_camera")
+    assert response.status == 503
+    await hass.config_entries.async_unload(account.entry_id)

@@ -14,6 +14,7 @@ Live view and cloud browsing are enabled by default. A camera starts streaming w
 
 - Native H.264 video with AAC audio through Home Assistant's stream integration.
 - One shared upstream live session per camera, bounded sessions, reconnect cooldown, and cleanup on unload.
+- A direct native MPEG-TS stream per camera for low-delay players and tools (`/api/blink_plus/live/<camera entity id>`, authenticated).
 - Cached camera images plus a button to request a fresh snapshot.
 - A **Record local clip** button that saves MP4 video and audio to Home Assistant media storage.
 - **Blink cloud clips** in the Media browser, grouped by account and camera, with thumbnails and seekable playback.
@@ -62,7 +63,7 @@ Seven cameras, including Mini, battery-camera, and doorbell classes, passed real
 
 Local MP4 recording was tested on all three camera classes. Cloud browsing listed 1,000 clips across seven camera folders and verified authenticated, seekable playback. Snapshot, motion/arming, and mount controls were exercised and original settings restored.
 
-The automated suite contains **70 tests**, plus five opt-in live-test groups. See [Validation](docs/VALIDATION.md) for measurements and limits. Fresh login/MFA has automated coverage; live tests reused an existing session. Other models, phone playback, casting, and long-term reliability remain unverified.
+The automated suite contains **73 tests**, plus five opt-in live-test groups. See [Validation](docs/VALIDATION.md) for measurements and limits. Fresh login/MFA has automated coverage; live tests reused an existing session. Other models, phone playback, casting, and long-term reliability remain unverified.
 
 ## Current limits
 

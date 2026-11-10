@@ -27,6 +27,10 @@ The native transport inherits blinkpy 0.25.9's IMMI TLS behavior, including its 
 
 The relay builds on blinkpy's live stream object, which is not a stable public interface, and Home Assistant decides which blinkpy version is installed. Before starting a session the relay checks that the object still has the parts it uses; if not, live view fails with a clear `incompatible_blinkpy` error instead of misbehaving. A contract test and a CI job against the newest blinkpy release give early warning.
 
+## Direct live stream
+
+`/api/blink_plus/live/<camera entity id>` serves the relay's MPEG-TS bytes over HTTP to an authenticated Home Assistant API client that may read that entity. It exists for players that need less delay than HLS allows, for example a custom dashboard that drives a pan-tilt mount: HLS adds at least its part hold-back on top of the camera's own delay, while this stream adds none. The view is simply another client of the camera's loopback relay, so it shares the upstream session with Home Assistant's player, is bound by the same session limit and cooldown, and ends the camera session when the last viewer disconnects. Browsers cannot play MPEG-TS directly; a client remuxes it (for example `ffmpeg -c copy` to fragmented MP4 for Media Source Extensions).
+
 ## Local MP4 recording
 
 The recording button uses HA's camera/stream recording path. It requests a bounded native live session and writes an H.264/AAC MP4 into an allowed HA directory. Duration is checked against the live-session limit. Successful saves update the camera attribute and emit a completion event. This feature does not submit a Blink cloud-record command or modify cloud retention.

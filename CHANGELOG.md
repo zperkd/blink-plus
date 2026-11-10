@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.3 - 2026-11-10
+
+Snapshot reliability, found while moving a seven-camera home to the integration.
+
+- Fixed: **Take snapshot** often failed with a timeout on battery cameras and when another Blink request was running. Blink handles one command at a time per network and answers "busy" meanwhile; that answer was treated as accepted, so the button then waited for a picture that was never taken. A busy answer is now retried (three attempts, six seconds apart) and reported clearly if Blink stays busy.
+- Changed: while waiting for the new picture the integration now checks Blink's one-request overview every three seconds instead of running a full refresh every eight. A full refresh also downloads every camera's thumbnail and recent clip, which made the wait slow enough to run into the command timeout. One full refresh still runs once the new picture is listed.
+- Changed: a snapshot that Blink does not publish within about 45 seconds now ends with "Blink did not publish a fresh snapshot in time" instead of a generic failure.
+
+Validation: 70 automated tests plus official HACS and hassfest checks. Snapshots were checked on real cameras with this version; see the release notes.
+
 ## 0.1.2 - 2026-11-10
 
 Hardening release. No new features and no option or entity changes.

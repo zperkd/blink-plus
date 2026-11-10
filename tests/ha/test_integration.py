@@ -50,6 +50,8 @@ def blink():
     instance.sync = {}
     instance.start = AsyncMock(return_value=True)
     instance.refresh = AsyncMock()
+    instance.get_homescreen = AsyncMock()
+    instance.homescreen = {}
     with (
         patch("custom_components.blink_plus.coordinator.Blink", return_value=instance),
         patch("custom_components.blink_plus.config_flow.Blink", return_value=instance),

@@ -32,6 +32,42 @@ AUTH_ERRORS = (
     LoginError,
     BlinkTwoFARequiredError,
 )
+# Blink runs one command at a time per network and answers "busy" meanwhile.
+SNAPSHOT_ATTEMPTS = 3
+SNAPSHOT_BUSY_SECONDS = 6
+SNAPSHOT_POLL_SECONDS = 3
+SNAPSHOT_WAIT_SECONDS = 45
+
+
+def blink_busy(result):
+    """Blink accepted nothing: another command is still running on this network."""
+    return (
+        isinstance(result, dict)
+        and "id" not in result
+        and (
+            result.get("code") == 307
+            or "busy" in str(result.get("message", "")).lower()
+        )
+    )
+
+
+def listed_thumbnail(homescreen, camera):
+    """The camera's current thumbnail in Blink's one-request overview, if listed there."""
+    camera_id = getattr(camera, "camera_id", None)
+    if camera_id is None or not isinstance(homescreen, dict):
+        return None
+    for devices in homescreen.values():
+        if not isinstance(devices, list):
+            continue
+        for device in devices:
+            if (
+                isinstance(device, dict)
+                and str(device.get("id")) == str(camera_id)
+                and device.get("name") == camera.name
+                and device.get("thumbnail")
+            ):
+                return device["thumbnail"]
+    return None
 
 
 def token_data(auth):
@@ -105,11 +141,11 @@ class BlinkCoordinator(DataUpdateCoordinator):
             )
         return self.relays[key]
 
-    async def command(self, operation, *args):
+    async def command(self, operation, *args, timeout=60):
         """Serialize requests and their refresh; keep upstream details out of UI errors."""
         async with self.control_lock:
             try:
-                async with asyncio.timeout(60):
+                async with asyncio.timeout(timeout):
                     result = await operation(*args)
                     if (
                         result is False
@@ -136,24 +172,51 @@ class BlinkCoordinator(DataUpdateCoordinator):
             return result
 
     async def snapshot(self, camera):
-        before = camera.thumbnail
+        """Ask for a new still and return once Blink has published it."""
+
+        async def published():
+            # One light overview request per check; a full refresh also downloads every camera's media.
+            await self.api.get_homescreen()
+            return listed_thumbnail(self.api.homescreen, camera)
 
         async def request_and_wait():
-            result = await camera.snap_picture()
+            before = await published()
+            before_fallback = getattr(camera, "thumbnail", None)
+            for attempt in range(SNAPSHOT_ATTEMPTS):
+                result = await camera.snap_picture()
+                if not blink_busy(result):
+                    break
+                if attempt + 1 < SNAPSHOT_ATTEMPTS:
+                    await asyncio.sleep(SNAPSHOT_BUSY_SECONDS)
+            else:
+                raise HomeAssistantError(
+                    "Blink is busy with another request; try again in a moment"
+                )
             if (
                 result is False
                 or result is None
                 or getattr(result, "status", 200) >= 400
             ):
                 return result
-            for _ in range(6):
-                await asyncio.sleep(8)
-                await self.api.refresh(force=True)
-                if camera.thumbnail != before:
-                    return result
+            for _ in range(SNAPSHOT_WAIT_SECONDS // SNAPSHOT_POLL_SECONDS):
+                await asyncio.sleep(SNAPSHOT_POLL_SECONDS)
+                if before is not None:
+                    if await published() != before:
+                        await self.api.refresh(force=True)
+                        return result
+                else:
+                    # This camera is not in the overview: compare after a full refresh instead.
+                    await self.api.refresh(force=True)
+                    if getattr(camera, "thumbnail", None) != before_fallback:
+                        return result
             raise HomeAssistantError("Blink did not publish a fresh snapshot in time")
 
-        await self.command(request_and_wait)
+        await self.command(
+            request_and_wait,
+            timeout=SNAPSHOT_ATTEMPTS * SNAPSHOT_BUSY_SECONDS
+            + SNAPSHOT_WAIT_SECONDS
+            + 45,
+        )
 
     async def record_local(self, camera):
         """Save native video/audio to HA's media directory without Blink cloud storage."""

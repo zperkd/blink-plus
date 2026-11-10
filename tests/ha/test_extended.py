@@ -248,3 +248,92 @@ async def test_camera_entity_registry_follows_lifecycle(hass, account, blink):
     assert coordinator.camera_entities["TEST123"].entity_id == "camera.test_camera"
     await hass.config_entries.async_unload(account.entry_id)
     assert not coordinator.camera_entities
+
+
+def overview(thumbnail):
+    return {
+        "networks": [{"id": 1, "name": "Home"}],
+        "cameras": [{"id": 77, "name": "Other", "thumbnail": "/other"}],
+        "owls": [{"id": 42, "name": "Test camera", "thumbnail": thumbnail}],
+    }
+
+
+async def test_snapshot_uses_the_light_overview_and_refreshes_once(
+    hass, account, blink
+):
+    await hass.config_entries.async_setup(account.entry_id)
+    camera = blink.cameras["Test camera"]
+    camera.camera_id = 42
+    camera.thumbnail = "old"
+    camera.snap_picture = AsyncMock(return_value={"id": 5, "network_id": 1})
+    answers = [overview("/t?ts=1"), overview("/t?ts=1"), overview("/t?ts=2")]
+
+    async def homescreen():
+        blink.homescreen = answers.pop(0)
+
+    blink.get_homescreen.side_effect = homescreen
+    blink.refresh.reset_mock()
+    with patch(
+        "custom_components.blink_plus.coordinator.asyncio.sleep", new=AsyncMock()
+    ):
+        await account.runtime_data.snapshot(camera)
+    camera.snap_picture.assert_awaited_once()
+    assert not answers
+    # One full refresh to load the new picture, plus the one every command ends with.
+    assert blink.refresh.await_count == 2
+    await hass.config_entries.async_unload(account.entry_id)
+
+
+async def test_snapshot_retries_while_blink_is_busy(hass, account, blink):
+    await hass.config_entries.async_setup(account.entry_id)
+    camera = blink.cameras["Test camera"]
+    camera.camera_id = 42
+    camera.snap_picture = AsyncMock(
+        side_effect=[
+            {"message": "System is busy, please wait", "code": 307},
+            {"id": 5, "network_id": 1},
+        ]
+    )
+    answers = [overview("/t?ts=1"), overview("/t?ts=2")]
+
+    async def homescreen():
+        blink.homescreen = answers.pop(0)
+
+    blink.get_homescreen.side_effect = homescreen
+    with patch(
+        "custom_components.blink_plus.coordinator.asyncio.sleep", new=AsyncMock()
+    ):
+        await account.runtime_data.snapshot(camera)
+    assert camera.snap_picture.await_count == 2
+    await hass.config_entries.async_unload(account.entry_id)
+
+
+async def test_snapshot_reports_a_busy_blink(hass, account, blink):
+    await hass.config_entries.async_setup(account.entry_id)
+    camera = blink.cameras["Test camera"]
+    camera.snap_picture = AsyncMock(
+        return_value={"message": "System is busy, please wait", "code": 307}
+    )
+    with patch(
+        "custom_components.blink_plus.coordinator.asyncio.sleep", new=AsyncMock()
+    ):
+        with pytest.raises(HomeAssistantError, match="Blink is busy"):
+            await account.runtime_data.snapshot(camera)
+    assert camera.snap_picture.await_count == 3
+    await hass.config_entries.async_unload(account.entry_id)
+
+
+def test_overview_lookup_needs_matching_id_and_name():
+    from custom_components.blink_plus.coordinator import blink_busy, listed_thumbnail
+
+    camera = SimpleNamespace(camera_id=42, name="Test camera")
+    assert listed_thumbnail(overview("/x"), camera) == "/x"
+    assert (
+        listed_thumbnail(overview("/x"), SimpleNamespace(camera_id=42, name="Renamed"))
+        is None
+    )
+    assert listed_thumbnail(overview("/x"), SimpleNamespace(name="Test camera")) is None
+    assert listed_thumbnail(None, camera) is None
+    assert blink_busy({"message": "System is busy, please wait", "code": 307})
+    assert not blink_busy({"id": 5, "message": "busy"})
+    assert not blink_busy(True)

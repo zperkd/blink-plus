@@ -1,22 +1,32 @@
-"""Render the project's original vector-style brand artwork (requires Pillow)."""
+"""Render the project's original brand artwork (requires Pillow; Nunito Sans gives the intended lettering)."""
 from pathlib import Path
 from PIL import Image,ImageDraw,ImageFont
 ROOT=Path(__file__).resolve().parents[1]
 BRAND=ROOT/'custom_components'/'blink_plus'/'brand'
 ASSETS=ROOT/'docs'/'assets'
-NAVY='#10233f';BLUE='#66c5ff';MINT='#73f3bf';WHITE='#f7fbff'
+NAVY='#10233f';BLUE='#66c5ff';MINT='#73f3bf';WHITE='#f7fbff';SKY='#1aa7f2'
 def font(size):
     for path in ('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf','C:/Windows/Fonts/segoeuib.ttf'):
         if Path(path).is_file():return ImageFont.truetype(path,size)
     return ImageFont.load_default(size=size)
+def wordmark(size):
+    """A heavy rounded face for the lowercase name on the icon (Nunito Sans Black where installed)."""
+    for path in ('/usr/share/fonts/truetype/nunito-sans/NunitoSans-VariableFont_YTLC,opsz,wdth,wght.ttf',):
+        if Path(path).is_file():
+            face=ImageFont.truetype(path,size)
+            try:face.set_variation_by_name('Black')
+            except (OSError,ValueError):pass
+            return face
+    return font(size)
 def icon(size):
+    """The lowercase name in white on a sky-blue tile with a plus badge. Original lettering, not Blink's logo artwork."""
     image=Image.new('RGBA',(1024,1024));d=ImageDraw.Draw(image)
-    d.rounded_rectangle((0,0,1023,1023),radius=240,fill=NAVY)
-    d.rounded_rectangle((128,328,652,716),radius=72,outline=BLUE,width=44)
-    d.polygon(((690,426),(896,326),(896,718),(690,618)),fill=BLUE)
-    d.ellipse((594,56,950,412),fill=MINT)
-    d.line((772,144,772,324),fill=NAVY,width=40)
-    d.line((682,234,862,234),fill=NAVY,width=40)
+    d.rounded_rectangle((0,0,1023,1023),radius=240,fill=SKY)
+    face=wordmark(330);box=d.textbbox((0,0),'blink',font=face)
+    d.text(((1024-(box[2]-box[0]))/2-box[0],610-(box[3]-box[1])/2-box[1]),'blink',font=face,fill=WHITE)
+    d.ellipse((664,70,954,360),fill=WHITE)
+    d.line((809,140,809,290),fill=SKY,width=44)
+    d.line((734,215,884,215),fill=SKY,width=44)
     return image.resize((size,size),Image.Resampling.LANCZOS)
 def main():
     BRAND.mkdir(parents=True,exist_ok=True);ASSETS.mkdir(parents=True,exist_ok=True)
@@ -38,5 +48,5 @@ def main():
         d.rounded_rectangle((x,329,x+width,378),radius=16,fill='#203d5e')
         d.text((x+16,341),label,font=f,fill=MINT);x+=width+14
     banner.save(ASSETS/'banner.png',optimize=True)
-    (ASSETS/'icon.svg').write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><rect width="256" height="256" rx="60" fill="#10233f"/><rect x="32" y="82" width="131" height="97" rx="18" fill="none" stroke="#66c5ff" stroke-width="11"/><path d="M172.5 106.5 224 81.5v98L172.5 154.5z" fill="#66c5ff"/><circle cx="193" cy="58.5" r="44.5" fill="#73f3bf"/><path d="M193 36v45m-22.5-22.5h45" stroke="#10233f" stroke-width="10"/></svg>\n',encoding='utf-8')
+    (ASSETS/'icon.svg').write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><rect width="256" height="256" rx="60" fill="#1aa7f2"/><text x="128" y="181" text-anchor="middle" font-family="Nunito Sans, Nunito, Arial Rounded MT Bold, Arial, sans-serif" font-weight="900" font-size="82" fill="#f7fbff">blink</text><circle cx="202" cy="54" r="36" fill="#f7fbff"/><path d="M202 35v38m-19-19h38" stroke="#1aa7f2" stroke-width="11"/></svg>'+chr(10),encoding='utf-8')
 if __name__=='__main__':main()

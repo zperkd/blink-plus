@@ -366,8 +366,12 @@ class DirectStream:
 
 
 async def test_direct_live_stream_serves_the_relay(
-    hass, account, blink, hass_client, socket_enabled
+    hass, account, blink, hass_client, socket_enabled, monkeypatch
 ):
+    monkeypatch.setattr(
+        "custom_components.blink_plus.transport.init_livestream",
+        lambda camera: camera.init_livestream(),
+    )
     await hass.config_entries.async_setup(account.entry_id)
     await hass.async_block_till_done()
     camera = blink.cameras["Test camera"]
@@ -409,12 +413,147 @@ async def test_direct_live_stream_refuses_unknown_and_disabled(
 
 
 async def test_direct_live_stream_reports_a_camera_that_does_not_start(
-    hass, account, blink, hass_client, socket_enabled
+    hass, account, blink, hass_client, socket_enabled, monkeypatch
 ):
+    monkeypatch.setattr(
+        "custom_components.blink_plus.transport.init_livestream",
+        lambda camera: camera.init_livestream(),
+    )
     await hass.config_entries.async_setup(account.entry_id)
     await hass.async_block_till_done()
     blink.cameras["Test camera"].init_livestream = AsyncMock(side_effect=OSError)
     client = await hass_client()
     response = await client.get("/api/blink_plus/live/camera.test_camera")
     assert response.status == 503
+    await hass.config_entries.async_unload(account.entry_id)
+
+
+def adts(n):
+    """A minimal ADTS AAC frame of total length n (7-byte header + payload), AAC-LC 16 kHz mono."""
+    hdr = bytearray(7)
+    hdr[0] = 0xFF
+    hdr[1] = 0xF1
+    hdr[2] = 0x60  # AAC-LC, 16 kHz
+    hdr[3] = 0x40 | ((n >> 11) & 0x03)
+    hdr[4] = (n >> 3) & 0xFF
+    hdr[5] = ((n & 0x07) << 5) | 0x1F
+    hdr[6] = 0xFC
+    return bytes(hdr) + bytes(n - 7)
+
+
+def test_split_adts_handles_partial_frames_and_junk():
+    from custom_components.blink_plus.live_http import split_adts
+
+    a, b = adts(20), adts(15)
+    frames, rest = split_adts(
+        b"\x00\x00" + a + b[:5]
+    )  # leading junk + one whole + one partial
+    assert frames == [a] and rest == b[:5]
+    frames, rest = split_adts(rest + b[5:])  # the rest completes the second
+    assert frames == [b] and rest == b""
+
+
+async def test_talk_view_speaks_adts_through_the_open_session(
+    hass, account, blink, hass_client, socket_enabled
+):
+    await hass.config_entries.async_setup(account.entry_id)
+    await hass.async_block_till_done()
+    relay = account.runtime_data.relay(blink.cameras["Test camera"])
+
+    class Writer:
+        def __init__(self):
+            self.data = bytearray()
+
+        def is_closing(self):
+            return False
+
+        def write(self, b):
+            self.data += b
+
+        async def drain(self):
+            relay.talk_ack.set()
+
+    writer = Writer()
+    relay.stream = SimpleNamespace(target_writer=writer)
+    client = await hass_client()
+    body = adts(30) + adts(22)
+    r = await client.post("/api/blink_plus/talk/camera.test_camera", data=body)
+    assert r.status == 200 and (await r.json())["frames"] == 2
+    # Opens the speaker (0x17), carries the two ADTS frames as 0x05 packets, closes it (0x17).
+    assert writer.data[0] == 0x17 and writer.data.count(b"\xff\xf1") == 2
+    assert writer.data[-9] == 0x17
+
+    # Another upload cannot reset this speaker or stop its owner.
+    await relay.talk_lock.acquire()
+    before = bytes(writer.data)
+    r = await client.post("/api/blink_plus/talk/camera.test_camera", data=body)
+    assert r.status == 409 and bytes(writer.data) == before
+    relay.talk_lock.release()
+
+    # Invalid codec settings and truncated frames are rejected.
+    invalid = bytearray(adts(20))
+    invalid[2] = 0x4C  # AAC-LC at 48 kHz.
+    for payload in (bytes(invalid), adts(20)[:-1], b""):
+        r = await client.post("/api/blink_plus/talk/camera.test_camera", data=payload)
+        assert r.status == 400
+
+    # No session open -> refused.
+    relay.stream = None
+    r = await client.post("/api/blink_plus/talk/camera.test_camera", data=adts(20))
+    assert r.status == 503
+    await hass.config_entries.async_unload(account.entry_id)
+
+
+async def test_talk_timeout_releases_speaker_and_lock(
+    hass, account, blink, hass_client, socket_enabled, monkeypatch
+):
+    await hass.config_entries.async_setup(account.entry_id)
+    await hass.async_block_till_done()
+    relay = account.runtime_data.relay(blink.cameras["Test camera"])
+    stream = SimpleNamespace()
+    relay.stream = stream
+
+    async def slow_start():
+        import asyncio
+
+        await asyncio.sleep(0.05)
+
+    relay.start_talk = AsyncMock(side_effect=slow_start)
+    relay.stop_talk = AsyncMock()
+    monkeypatch.setattr("custom_components.blink_plus.live_http.TALK_TIMEOUT", 0.01)
+
+    client = await hass_client()
+    response = await client.post(
+        "/api/blink_plus/talk/camera.test_camera", data=adts(20)
+    )
+    assert response.status == 408
+    relay.stop_talk.assert_awaited_once()
+    assert not relay.talk_lock.locked()
+    relay.stream = None
+    await hass.config_entries.async_unload(account.entry_id)
+
+
+async def test_old_talk_upload_cannot_write_to_or_stop_new_session(
+    hass, account, blink, hass_client, socket_enabled
+):
+    await hass.config_entries.async_setup(account.entry_id)
+    await hass.async_block_till_done()
+    relay = account.runtime_data.relay(blink.cameras["Test camera"])
+    relay.stream = SimpleNamespace()
+    replacement = SimpleNamespace()
+
+    async def replace_session():
+        relay.stream = replacement
+
+    relay.start_talk = AsyncMock(side_effect=replace_session)
+    relay.send_audio = AsyncMock()
+    relay.stop_talk = AsyncMock()
+    client = await hass_client()
+    response = await client.post(
+        "/api/blink_plus/talk/camera.test_camera", data=adts(20)
+    )
+    assert response.status == 503
+    relay.send_audio.assert_not_awaited()
+    relay.stop_talk.assert_not_awaited()
+    relay.stream = None
     await hass.config_entries.async_unload(account.entry_id)

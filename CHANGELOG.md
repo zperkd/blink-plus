@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.0 - 2026-11-10
+
+Two-way talk through the existing live media connection, with a documented API for compatible clients.
+
+- Added authenticated POST /api/blink_plus/talk/{entity_id}. It receives ADTS-framed AAC-LC at 16 kHz mono, reconstructs split frames, validates the format, paces uploads in real time and reports the transmitted frame count.
+- Added camera control-permission enforcement, one active talk upload per camera, a 60-second request lifetime, malformed/empty-audio rejection and cleanup when the client or live session ends. An old upload cannot send audio to or stop a replacement session.
+- Fixed talk remaining silent in independent sessions by preserving the liveview_token from Blink's live-view response and reproducing the initial media keepalive and speaker-control sequence. The relay waits for a fresh speaker acknowledgement before sending audio.
+- Added regression coverage for token placement, unchanged receive-only handling when the token is absent, oversize token rejection, empty/stale acknowledgements, simultaneous talkers, invalid audio, request timeout and replacement-session ownership.
+- Updated the README, configuration and architecture notes, validation evidence and dedicated [two-way talk how-to](docs/TWO_WAY_TALK.md). The guide includes an ffmpeg/curl example, browser microphone requirements, API responses and model limits.
+
+Live voice and tones were heard through a Mini-class camera with the official app closed. The voice test used a separate custom browser dashboard with hold/release controls, microphone cleanup and server-side encoding. A compatible client supplies the microphone UI when using this integration. Doorbell and outdoor-camera speakers need additional model-specific testing.
+
+Validation for the release includes 83 automated integration tests and five opt-in live groups skipped during normal runs. Existing seven-camera viewing and recording evidence remains in [Validation](docs/VALIDATION.md). Update through HACS / Marketplace and restart HA. Existing entities and options carry over from 0.1.x.
+
+
 ## 0.1.3 - 2026-11-10
 
 Snapshot reliability and a direct live stream, both from moving a seven-camera home to the integration.

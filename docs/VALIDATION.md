@@ -1,5 +1,19 @@
 # Blink Plus validation - 2026-11-10
 
+## 0.2.0 talk validation
+
+The 0.2.0 release adds independent-session talk support and API safeguards. The integration suite passes 83 automated tests, with five live groups skipped in normal runs. Official release CI is recorded in GitHub Actions.
+
+A Mini-class camera played synthetic AAC tones and the owner's actual voice through a custom browser dashboard. The final successful voice test used the production HA talk endpoint with the official Blink app closed. Preserving only the media token was insufficient in an earlier endpoint test. The validated sequence also sends the initial keepalive, uses the talk-control sequence and waits for a fresh reply.
+
+The separate dashboard's browser test sent 29 microphone packets in roughly three seconds, received successful start/data/stop responses and verified microphone tracks ended on release. Isolated client UI checks verified permission-denied feedback and close-during-talk cleanup. The complete dashboard suite passed 293 tests, followed by 64 affected checks after small cleanup changes. Those client checks belong to the separate dashboard and are additional to the integration's 83 tests.
+
+Talk speaker playback was verified on one Mini-class camera. Other camera speakers, actual wall-panel microphone hardware, phone/browser combinations, casting and long-term reliability remain open test areas. The microphone UI is supplied by a compatible client. See [Two-way talk](TWO_WAY_TALK.md).
+
+## Historical 0.1.0 viewing, recording and cloud validation
+
+The following results document the original 0.1.0 validation run. The original production-state statements describe that historical run. The owner subsequently installed Blink Plus and verified the 0.2.0 talk development build in production.
+
 Test environment: isolated Home Assistant 2026.11.1 / Python 3.14 on the Pi. Production HA independently reports the same Core version. Browser: headless Edge 157 on a separate Windows host, connected to the isolated loopback-only HTTP test server through an SSH tunnel. Production HA was not restarted or modified.
 
 ## Final browser results

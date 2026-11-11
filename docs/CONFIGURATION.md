@@ -69,3 +69,11 @@ actions:
 ```
 
 Use HA's automation UI to choose actual entities and triggers. Poll-based motion detection can miss short changes between polls, so assess suitability before relying on it for time-sensitive automations.
+
+## Two-way talk
+
+Talk uses the existing Live view option and camera entity. Open live video before posting audio. No new account login, entity or talk-specific option is required when updating from 0.1.x.
+
+A compatible client captures the microphone and streams AAC-LC, 16 kHz mono, in ADTS frames to POST /api/blink_plus/talk/{entity_id}, with HA authentication and camera control permission. One talker is accepted per camera and each request is limited to 60 seconds. Browser microphone access requires HTTPS or trusted localhost.
+
+See the [complete talk guide](TWO_WAY_TALK.md) for upgrade steps, a command-line example, status codes, client lifecycle and tested camera scope.

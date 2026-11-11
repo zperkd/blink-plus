@@ -5,6 +5,7 @@ import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1] / "custom_components" / "blink_plus"
 
@@ -42,6 +43,15 @@ class Writer:
 
 
 class ProtocolTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        opener = patch.object(
+            transport,
+            "init_livestream",
+            new=lambda camera: camera.init_livestream(),
+        )
+        opener.start()
+        self.addCleanup(opener.stop)
+
     async def test_fragmented_headers_and_payloads(self):
         reader = asyncio.StreamReader()
         writer = Writer()
@@ -146,6 +156,35 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(relay.starts, 0)
         finally:
             await relay.close()
+
+    async def test_talk_start_audio_stop_sequence(self):
+        relay = transport.NativeRelay(SimpleNamespace())
+        writer = Writer()
+        relay.stream = SimpleNamespace(target_writer=writer)
+
+        async def drain():
+            relay.talk_ack.set()
+
+        writer.drain = drain
+        frame = b"\xff\xf1" + b"\x00" * 20
+        await relay.start_talk()
+        await relay.send_audio(frame)
+        await relay.send_audio(frame)
+        await relay.stop_talk()
+        # 0x17 start (control seq 3), audio 0x05 seq 0 then 1, 0x17 stop (control seq 4).
+        start = b"\x17" + (3).to_bytes(4, "big") + (0).to_bytes(4, "big")
+        a0 = b"\x05" + (0).to_bytes(4, "big") + len(frame).to_bytes(4, "big") + frame
+        a1 = b"\x05" + (1).to_bytes(4, "big") + len(frame).to_bytes(4, "big") + frame
+        stop = b"\x17" + (4).to_bytes(4, "big") + (0).to_bytes(4, "big")
+        self.assertEqual(bytes(writer.data), start + a0 + a1 + stop)
+
+    async def test_talk_requires_an_open_session(self):
+        relay = transport.NativeRelay(SimpleNamespace())
+        with self.assertRaises(RuntimeError):
+            await relay.send_audio(b"\xff\xf1\x00\x00")
+        relay.stream = SimpleNamespace(target_writer=None)
+        with self.assertRaises(RuntimeError):
+            await relay.send_audio(b"\xff\xf1\x00\x00")
 
     async def test_pan_tilt_requires_active_session(self):
         relay = transport.NativeRelay(SimpleNamespace())
@@ -273,6 +312,35 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(camera.calls, 1)
         finally:
             await relay.close()
+
+
+class TalkReplyTests(unittest.IsolatedAsyncioTestCase):
+    async def test_empty_talk_reply_wakes_waiter(self):
+        reader = asyncio.StreamReader()
+        acknowledgement = asyncio.Event()
+        target = Writer()
+        reader.feed_data(b"\x18" + (4).to_bytes(4, "big") + bytes(4))
+        reader.feed_eof()
+        await transport.recv_packets(
+            SimpleNamespace(
+                target_reader=reader,
+                target_writer=target,
+                clients=[],
+                talk_ack=acknowledgement,
+            )
+        )
+        self.assertTrue(acknowledgement.is_set())
+
+    async def test_talk_requires_a_fresh_camera_reply(self):
+        relay = transport.NativeRelay(SimpleNamespace())
+        relay.stream = SimpleNamespace(target_writer=Writer())
+        relay.talk_ack.set()
+        task = asyncio.create_task(relay.start_talk())
+        await asyncio.sleep(0)
+        self.assertFalse(task.done())
+        self.assertFalse(relay.talk_ack.is_set())
+        relay.talk_ack.set()
+        await asyncio.wait_for(task, 1)
 
 
 class ValueTests(unittest.TestCase):

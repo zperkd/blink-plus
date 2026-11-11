@@ -14,6 +14,40 @@ MAX_PAYLOAD = 8 * 1024 * 1024
 REQUIRED = ("feed", "recv", "stop", "clients", "target_reader", "target_writer")
 
 
+async def init_livestream(camera):
+    """Retain Blink's per-session token so the relay can transmit talk audio."""
+    from blinkpy import api
+    from blinkpy.livestream import BlinkLiveStream
+
+    response = await api.request_camera_liveview(
+        camera.sync.blink,
+        camera.sync.network_id,
+        camera.camera_id,
+        camera_type=camera.camera_type,
+    )
+    if not response["server"].startswith("immis://"):
+        raise NotImplementedError("Unsupported Blink stream transport")
+    stream = BlinkLiveStream(camera, response)
+    token = response.get("liveview_token")
+    if token:
+        if not isinstance(token, str) or len(token.encode("utf-8")) > 64:
+            raise ValueError("Invalid Blink live-view token")
+        token_bytes = token.encode("utf-8").ljust(64, b"\x00")
+        original_header = stream.get_auth_header
+
+        def get_auth_header(self):
+            header = original_header()
+            if len(header) != 122 or header[30:34] != (64).to_bytes(4, "big"):
+                raise RuntimeError("Incompatible Blink authentication header")
+            header[34:98] = token_bytes
+            # The app sends its initial keepalive with authentication.
+            header.extend(b"\x0a" + bytes(8))
+            return header
+
+        stream.get_auth_header = MethodType(get_auth_header, stream)
+    return stream
+
+
 async def recv_packets(stream):
     """Read complete IMMI packets, forwarding native MPEG-TS and accessory state."""
     try:
@@ -22,6 +56,10 @@ async def recv_packets(stream):
             length = int.from_bytes(header[5:9], "big")
             if length > MAX_PAYLOAD:
                 raise ValueError("Oversized Blink packet")
+            if header[0] == 0x18:
+                acknowledgement = getattr(stream, "talk_ack", None)
+                if acknowledgement is not None:
+                    acknowledgement.set()
             if not length:
                 continue
             payload = await stream.target_reader.readexactly(length)
@@ -76,6 +114,10 @@ class NativeRelay:
         self.closed = False
         self.starts = 0
         self.last_error = None
+        self.audio_seq = 0
+        self.control_seq = 2
+        self.talk_ack = asyncio.Event()
+        self.talk_lock = asyncio.Lock()
 
     async def source(self):
         """Create a local listener without contacting Blink."""
@@ -122,7 +164,7 @@ class NativeRelay:
         try:
             try:
                 async with asyncio.timeout(20):
-                    upstream = await self.camera.init_livestream()
+                    upstream = await init_livestream(self.camera)
                     if not all(hasattr(upstream, name) for name in REQUIRED):
                         upstream = None
                         self.last_error = "incompatible_blinkpy"
@@ -132,6 +174,8 @@ class NativeRelay:
                         )
                         return
                     upstream.recv = MethodType(recv_packets, upstream)
+                    upstream.talk_ack = self.talk_ack
+                    self.control_seq = 2
                     # Reuse blinkpy's protocol/auth/keepalive, but not its TCP listener.
                     async with self.lock:
                         if not self.clients or self.closed:
@@ -226,6 +270,51 @@ class NativeRelay:
         )
         stream.target_writer.write(packet)
         await stream.target_writer.drain()
+
+    async def _write_packet(self, msgtype, seq, payload=b""):
+        """Write one IMMI packet to the open live connection."""
+        stream = self.stream
+        if (
+            stream is None
+            or stream.target_writer is None
+            or stream.target_writer.is_closing()
+        ):
+            raise RuntimeError("Open live view before talking")
+        packet = (
+            bytes([msgtype])
+            + seq.to_bytes(4, "big")
+            + len(payload).to_bytes(4, "big")
+            + payload
+        )
+        stream.target_writer.write(packet)
+        await stream.target_writer.drain()
+
+    async def start_talk(self):
+        """Open the camera's speaker before streaming audio (IMMI control 0x17), and reset the audio sequence."""
+        self.control_seq = (self.control_seq + 1) & 0xFFFFFFFF
+        self.audio_seq = 0
+        self.talk_ack.clear()
+        await self._write_packet(0x17, self.control_seq)
+        try:
+            await asyncio.wait_for(self.talk_ack.wait(), 3)
+        except TimeoutError:
+            raise RuntimeError("Camera did not acknowledge talk") from None
+
+    async def stop_talk(self):
+        """Close the camera's speaker when talk ends (IMMI control 0x17)."""
+        self.control_seq = (self.control_seq + 1) & 0xFFFFFFFF
+        await self._write_packet(0x17, self.control_seq)
+
+    async def send_audio(self, frame):
+        """Send one ADTS AAC frame to the camera as an IMMI talk packet (0x05).
+
+        Two-way talk rides the open live session, like the pan/tilt commands: live view must be open, and
+        start_talk() must have opened the speaker first. The camera expects AAC-LC, 16 kHz, mono, one ADTS frame
+        per packet, with an audio sequence counting up from 0.
+        """
+        seq = self.audio_seq
+        self.audio_seq = (self.audio_seq + 1) & 0xFFFFFFFF
+        await self._write_packet(0x05, seq, frame)
 
     async def close(self):
         """Stop accepting clients and await all owned tasks on unload."""

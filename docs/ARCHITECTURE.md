@@ -31,6 +31,14 @@ The relay builds on blinkpy's live stream object, which is not a stable public i
 
 `/api/blink_plus/live/<camera entity id>` serves the relay's MPEG-TS bytes over HTTP to an authenticated Home Assistant API client that may read that entity. It exists for players that need less delay than HLS allows, for example a custom dashboard that drives a pan-tilt mount: HLS adds at least its part hold-back on top of the camera's own delay, while this stream adds none. The view is simply another client of the camera's loopback relay, so it shares the upstream session with Home Assistant's player, is bound by the same session limit and cooldown, and ends the camera session when the last viewer disconnects. Browsers cannot play MPEG-TS directly; a client remuxes it (for example `ffmpeg -c copy` to fragmented MP4 for Media Source Extensions).
 
+## Two-way talk
+
+The live-view API's per-session `liveview_token` must populate the 64-byte token field in the IMMI authentication header. Blinkpy 0.25.9 fills that field with zeros, which can receive video while leaving talk silent when the Blink app is closed. The relay retains the response token and overrides the header on its own stream instance. The token stays in memory. The app-like setup also appends the initial IMMI keepalive (type 0x0a, sequence 0), starts talk controls at sequence 3, and waits for a fresh empty type 0x18 reply before sending audio. The complete sequence was audibly verified through the HA endpoint with the app closed. Token insertion alone stayed silent in that endpoint test. Responses without a token retain blinkpy's receive-only behavior.
+
+`/api/blink_plus/talk/<camera entity id>` (POST, authenticated, entity control permission) speaks audio to the camera through an open live session. The body is a stream of ADTS AAC frames (AAC-LC, 16 kHz, mono); the view splits it into frames and writes each to the camera's live connection as an IMMI talk packet (message type `0x05`), the same way pan/tilt commands are written. Live view must be open (the relay session active), exactly as in the Blink app, where talk works only during live view. The camera's own microphone audio arrives the other way, muxed into the native video. A client captures a microphone and transcodes it to this format (for example with ffmpeg); the integration does not re-encode.
+
+The HTTP view serializes talk requests per camera, checks control permission, accepts only AAC-LC 16 kHz mono ADTS frames and limits a request to 60 seconds. It retains the original stream identity so cleanup cannot close a newer session. A timeout, client cancellation or end-of-input closes the original speaker when it still exists. Client microphone UI and encoding are supplied separately. See [Two-way talk](TWO_WAY_TALK.md).
+
 ## Local MP4 recording
 
 The recording button uses HA's camera/stream recording path. It requests a bounded native live session and writes an H.264/AAC MP4 into an allowed HA directory. Duration is checked against the live-session limit. Successful saves update the camera attribute and emit a completion event. This feature does not submit a Blink cloud-record command or modify cloud retention.
@@ -47,4 +55,4 @@ Blink's origin ignored Range requests in testing. The integration therefore down
 
 Snapshots request a new camera image and wait for updated thumbnail metadata. Ordinary camera stills use the cached image. Motion and arming use Blink control APIs followed by a state refresh. Optional mount commands travel over the native live connection.
 
-This integration does not implement push events, two-way talk, USB clip retrieval, or every setting in the Blink app. Model-specific capabilities and cloud API behavior can change independently of this project. See [validation evidence](VALIDATION.md) for what was actually tested.
+This integration does not implement push events, USB clip retrieval, or every setting in the Blink app. Model-specific capabilities and cloud API behavior can change independently of this project. See [validation evidence](VALIDATION.md) for what was actually tested.

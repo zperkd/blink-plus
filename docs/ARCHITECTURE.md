@@ -33,11 +33,19 @@ The relay builds on blinkpy's live stream object, which is not a stable public i
 
 ## Two-way talk
 
-The live-view API's per-session `liveview_token` must populate the 64-byte token field in the IMMI authentication header. Blinkpy 0.25.9 fills that field with zeros, which can receive video while leaving talk silent when the Blink app is closed. The relay retains the response token and overrides the header on its own stream instance. The token stays in memory. The app-like setup also appends the initial IMMI keepalive (type 0x0a, sequence 0), starts talk controls at sequence 3, and waits for a fresh empty type 0x18 reply before sending audio. The complete sequence was audibly verified through the HA endpoint with the app closed. Token insertion alone stayed silent in that endpoint test. Responses without a token retain blinkpy's receive-only behavior.
+The live-view API's per-session `liveview_token` must populate the 64-byte token field in the IMMI authentication header. Blinkpy 0.25.9 fills that field with zeros, which can receive video while leaving talk silent when the Blink app is closed. The relay retains the response token and overrides the header on its own stream instance. The token stays in memory. The app-like setup also appends the initial IMMI keepalive (type 0x0a, sequence 0), uses fixed speaker control ID 3 to start and 4 to stop, and waits for a fresh empty type 0x18 reply before sending audio. The complete sequence was audibly verified through the HA endpoint with the app closed. Token insertion alone stayed silent in that endpoint test. Responses without a token retain blinkpy's receive-only behavior.
 
 `/api/blink_plus/talk/<camera entity id>` (POST, authenticated, entity control permission) speaks audio to the camera through an open live session. The body is a stream of ADTS AAC frames (AAC-LC, 16 kHz, mono); the view splits it into frames and writes each to the camera's live connection as an IMMI talk packet (message type `0x05`), the same way pan/tilt commands are written. Live view must be open (the relay session active), exactly as in the Blink app, where talk works only during live view. The camera's own microphone audio arrives the other way, muxed into the native video. A client captures a microphone and transcodes it to this format (for example with ffmpeg); the integration does not re-encode.
 
-The HTTP view serializes talk requests per camera, checks control permission, accepts only AAC-LC 16 kHz mono ADTS frames and limits a request to 60 seconds. It retains the original stream identity so cleanup cannot close a newer session. A timeout, client cancellation or end-of-input closes the original speaker when it still exists. Client microphone UI and encoding are supplied separately. See [Two-way talk](TWO_WAY_TALK.md).
+The HTTP view serializes talk requests per camera, checks control permission, accepts only AAC-LC 16 kHz mono ADTS frames and limits a request to 60 seconds. It retains the original stream identity so cleanup cannot close a newer session. A timeout, client cancellation or end-of-input closes the original speaker when it still exists. The HTTP interface accepts pre-encoded client audio. See [Two-way talk](TWO_WAY_TALK.md).
+
+## Native dashboard microphone
+
+The bundled custom:blink-plus-ptt element and worklet are served from /blink_plus/frontend. The worklet emits 100 ms packets of 16 kHz mono PCM. HA's authenticated websocket carries the packets to an in-memory PyAV AAC encoder, then the existing relay sends ADTS frames to the camera.
+
+A microphone session owns its original websocket, entity, live stream and shared per-camera talk lock. Sequence checks and a four-packet queue bound stale input. Five seconds without input or the one-minute session limit ends talk. Releasing drains the bounded final audio before closing the speaker. Disconnect and integration unload cancel the worker and release its lock. A new hold waits for the preceding stop to finish.
+
+See [Native push-to-talk](NATIVE_PTT.md) for the module resource and card configuration.
 
 ## Local MP4 recording
 

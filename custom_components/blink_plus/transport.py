@@ -115,9 +115,9 @@ class NativeRelay:
         self.starts = 0
         self.last_error = None
         self.audio_seq = 0
-        self.control_seq = 2
         self.talk_ack = asyncio.Event()
         self.talk_lock = asyncio.Lock()
+        self.talk_worker = None
 
     async def source(self):
         """Create a local listener without contacting Blink."""
@@ -175,7 +175,6 @@ class NativeRelay:
                         return
                     upstream.recv = MethodType(recv_packets, upstream)
                     upstream.talk_ack = self.talk_ack
-                    self.control_seq = 2
                     # Reuse blinkpy's protocol/auth/keepalive, but not its TCP listener.
                     async with self.lock:
                         if not self.clients or self.closed:
@@ -203,6 +202,10 @@ class NativeRelay:
             if self.on_auth_error:
                 self.on_auth_error(err)
         finally:
+            if self.talk_worker is not None:
+                if not self.talk_worker.cancelling():
+                    self.talk_worker.cancel()
+                await asyncio.gather(self.talk_worker, return_exceptions=True)
             if upstream:
                 upstream.stop()
             if feed:
@@ -290,20 +293,18 @@ class NativeRelay:
         await stream.target_writer.drain()
 
     async def start_talk(self):
-        """Open the camera's speaker before streaming audio (IMMI control 0x17), and reset the audio sequence."""
-        self.control_seq = (self.control_seq + 1) & 0xFFFFFFFF
+        """Enable the camera speaker (IMMI 0x17, control ID 3) and reset audio sequence."""
         self.audio_seq = 0
         self.talk_ack.clear()
-        await self._write_packet(0x17, self.control_seq)
+        await self._write_packet(0x17, 3)
         try:
             await asyncio.wait_for(self.talk_ack.wait(), 3)
         except TimeoutError:
             raise RuntimeError("Camera did not acknowledge talk") from None
 
     async def stop_talk(self):
-        """Close the camera's speaker when talk ends (IMMI control 0x17)."""
-        self.control_seq = (self.control_seq + 1) & 0xFFFFFFFF
-        await self._write_packet(0x17, self.control_seq)
+        """Disable the camera speaker (IMMI 0x17, control ID 4)."""
+        await self._write_packet(0x17, 4)
 
     async def send_audio(self, frame):
         """Send one ADTS AAC frame to the camera as an IMMI talk packet (0x05).
@@ -319,6 +320,10 @@ class NativeRelay:
     async def close(self):
         """Stop accepting clients and await all owned tasks on unload."""
         self.closed = True
+        if self.talk_worker is not None:
+            if not self.talk_worker.cancelling():
+                self.talk_worker.cancel()
+            await asyncio.gather(self.talk_worker, return_exceptions=True)
         if self.server:
             self.server.close()
             await self.server.wait_closed()

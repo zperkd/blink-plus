@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.0 - 2026-11-10
+
+Native Home Assistant dashboard push-to-talk and reliable repeated holds.
+
+- Added the bundled custom:blink-plus-ptt element for picture-elements live video overlays and standalone cards, with an HA microphone icon, hold/release and Space/Enter support.
+- Added authenticated, connection-owned HA websocket microphone sessions and in-memory PCM-to-AAC encoding using HA's existing media dependencies.
+- Added bounded ordered audio packets, one talker per camera, one-minute holds, idle cleanup and cancellation-safe disconnect/unload cleanup.
+- Fixed repeated talk in the same live session. Speaker start/stop use fixed control IDs 3 and 4 each time. These identifiers previously increased after the first hold.
+- Fixed re-pressing during speaker shutdown. The button shows Finishing until the previous stop completes, including a release while talk is still opening.
+- Added microphone permission/HTTPS feedback and a hold-again hint when a browser prompt ends the first press.
+- Added a [native HA setup guide](docs/NATIVE_PTT.md), card YAML, resource instructions, updated README/configuration/architecture and explicit test evidence.
+
+The included element captures the microphone directly in HA. Existing clients can continue to use the AAC HTTP endpoint. Add the JavaScript module resource and configure the element after updating and restarting HA. Camera speaker verification is currently limited to one Mini-class camera.
+
+
 ## 0.2.0 - 2026-11-10
 
 Two-way talk through the existing live media connection, with a documented API for compatible clients.

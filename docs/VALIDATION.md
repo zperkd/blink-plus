@@ -1,5 +1,13 @@
 # Blink Plus validation - 2026-11-10
 
+## 0.3.0 native HA push-to-talk validation
+
+The integration suite passes 86 automated tests, including native PCM-to-AAC decoding, websocket session ownership, shared HTTP/microphone locking, microphone disconnect cleanup and three repeated start/audio/stop sequences. JavaScript syntax checks run in CI.
+
+An actual HA picture-elements live view loaded the bundled microphone element. A browser with a synthetic microphone transmitted 28 audio packets during a three-second hold. All commands succeeded, release ended the microphone track and completed one stop command. At 390 px phone width, the microphone control fit between x=24 and x=155 while the existing pan/tilt pad remained accessible.
+
+The owner confirmed real voice on the native HA button and reported that a second hold failed. The repeated-hold regression reproduced the increasing control-ID defect. The correction uses fixed start/stop IDs and waits for close completion before accepting another hold. After the correction, the owner verified seven successful holds in the same live view without reopening it.
+
 ## 0.2.0 talk validation
 
 The 0.2.0 release adds independent-session talk support and API safeguards. The integration suite passes 83 automated tests, with five live groups skipped in normal runs. Official release CI is recorded in GitHub Actions.

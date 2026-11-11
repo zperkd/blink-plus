@@ -2,11 +2,11 @@
 
 # Blink Plus
 
-Native Blink live video and audio, two-way talk for compatible clients, local recording, cloud clip browsing, and camera controls in one Home Assistant custom integration. Setup and options are configured in the UI.
+Native Blink live video and audio, dashboard push-to-talk, local recording, cloud clip browsing, and camera controls in one Home Assistant custom integration. Setup and options are configured in the UI.
 
-[Installation](#installation) | [Options](docs/CONFIGURATION.md) | [Two-way talk](docs/TWO_WAY_TALK.md) | [How it works](docs/ARCHITECTURE.md) | [Test results](docs/VALIDATION.md) | [Changelog](CHANGELOG.md)
+[Installation](#installation) | [Options](docs/CONFIGURATION.md) | [HA push-to-talk](docs/NATIVE_PTT.md) | [Talk API](docs/TWO_WAY_TALK.md) | [How it works](docs/ARCHITECTURE.md) | [Test results](docs/VALIDATION.md) | [Changelog](CHANGELOG.md)
 
-**Current release: v0.2.0.** Requires Home Assistant 2026.11.0 or newer and a Blink account. This independent project uses unofficial Blink cloud APIs and is not affiliated with Amazon or Blink.
+**Current release: v0.3.0.** Requires Home Assistant 2026.11.0 or newer and a Blink account. This independent project uses unofficial Blink cloud APIs and is not affiliated with Amazon or Blink.
 
 Live view and cloud browsing are enabled by default. A camera starts streaming when a player connects. Snapshot, recording, motion, arming, and enabled pan/tilt controls can operate your cameras; setup does not automatically arm the system or start recordings. Battery cameras still need to wake and contact Blink's cloud.
 
@@ -15,7 +15,8 @@ Live view and cloud browsing are enabled by default. A camera starts streaming w
 - Native H.264 video with AAC audio through Home Assistant's stream integration.
 - One shared upstream live session per camera, bounded sessions, reconnect cooldown, and cleanup on unload.
 - A direct native MPEG-TS stream per camera for low-delay players and tools (`/api/blink_plus/live/<camera entity id>`, authenticated).
-- Two-way talk: an authenticated endpoint that speaks a stream of AAC audio through an open live session (`/api/blink_plus/talk/<camera entity id>`).
+- Native HA dashboard push-to-talk, authenticated microphone sessions and in-memory audio encoding.
+- An AAC talk API for other compatible clients (/api/blink_plus/talk/{entity_id}).
 - Cached camera images plus a button to request a fresh snapshot.
 - A **Record local clip** button that saves MP4 video and audio to Home Assistant media storage.
 - **Blink cloud clips** in the Media browser, grouped by account and camera, with thumbnails and seekable playback.
@@ -25,11 +26,11 @@ Live view and cloud browsing are enabled by default. A camera starts streaming w
 - Optional left/right/up/down/home buttons for cameras with a compatible pan/tilt mount.
 - UI login, verification-code entry, reauthentication, configuration, and redacted diagnostics.
 
-## New in 0.2.0
+## New in 0.3.0
 
-Two-way talk can now send your voice to a camera through its active live connection. This release preserves Blink's per-session media token, sends the initial keepalive, and waits for the speaker acknowledgement before audio starts.
+Add a **Hold to talk** button directly to an HA camera dashboard. The included custom element uses your signed-in HA connection, captures the microphone while held and converts audio inside the integration. It works as an overlay on a picture-elements live camera card or as a separate card.
 
-A compatible client provides microphone capture and its Talk button. The integration provides the authenticated AAC upload API. A custom browser dashboard was used to verify real voice on a Mini-class camera. The [talk guide](docs/TWO_WAY_TALK.md) explains client requirements, update steps, a working ffmpeg/curl example, request limits and troubleshooting.
+The [native push-to-talk guide](docs/NATIVE_PTT.md) includes the resource URL, YAML example, microphone permissions, HTTPS requirements and usage. The existing [AAC talk API](docs/TWO_WAY_TALK.md) remains available for other clients. Repeated holds use fixed speaker start/stop control IDs, and the button waits for stopping to finish before it can be held again.
 
 ## Installation
 
@@ -48,15 +49,15 @@ HACS must already be installed. UI wording can vary by version. See [HACS custom
 
 ### Manual installation
 
-Download the release's `blink-plus-v0.2.0.zip`. Extract its `custom_components/blink_plus` folder into your HA configuration directory, producing `/config/custom_components/blink_plus/manifest.json`. Restart HA, then follow steps 4-6 above. Do not place the enclosing repository folder inside `custom_components`.
+Download the release's `blink-plus-v0.3.0.zip`. Extract its `custom_components/blink_plus` folder into your HA configuration directory, producing `/config/custom_components/blink_plus/manifest.json`. Restart HA, then follow steps 4-6 above. Do not place the enclosing repository folder inside `custom_components`.
 
 ### Moving from the built-in Blink integration
 
 Blink Plus uses its own `blink_plus` domain and creates new entities. Existing dashboards and automations must be updated to those entities. Its network control is an **Armed switch**, not an alarm-control-panel entity. Disable the original Blink integration after checking the replacement to avoid duplicate polling and controls. No automatic migration is performed.
 
-## Updating from 0.1.x
+## Updating from 0.1.x or 0.2.x
 
-Download 0.2.0 in HACS / Marketplace and restart Home Assistant. Existing Blink Plus entities and settings are retained. Live viewing, snapshots, recordings, cloud clips, motion/arming and pan/tilt remain available. Talk uses the existing camera entity and an open live session. See the [upgrade and talk prerequisites](docs/TWO_WAY_TALK.md#update-and-prerequisites).
+Download 0.3.0 in HACS / Marketplace and restart Home Assistant. Existing Blink Plus entities and settings are retained. Live viewing, snapshots, recordings, cloud clips, motion/arming and pan/tilt remain available. Talk uses the existing camera entity and an open live session. Add the JavaScript module and button using the [native PTT guide](docs/NATIVE_PTT.md).
 
 ## Everyday use
 
@@ -74,9 +75,9 @@ Seven cameras, including Mini, battery-camera, and doorbell classes, passed real
 
 Local MP4 recording was tested on all three camera classes. Cloud browsing listed 1,000 clips across seven camera folders and verified authenticated, seekable playback. Snapshot, motion/arming, and mount controls were exercised and original settings restored.
 
-The automated suite contains **83 tests**, plus five opt-in live-test groups. See [Validation](docs/VALIDATION.md) for measurements and limits. Fresh login/MFA has automated coverage; live tests reused an existing session. Other models, phone playback, casting, and long-term reliability remain unverified.
+The automated suite contains **86 tests**, plus five opt-in live-test groups. See [Validation](docs/VALIDATION.md) for measurements and limits. Fresh login/MFA has automated coverage; live tests reused an existing session. Other models, phone playback, casting, and long-term reliability remain unverified.
 
-Two-way talk was verified with a Mini-class camera using real voice and tones, including with the Blink app closed. Other camera models need independent speaker testing. A compatible microphone client is required. See [Two-way talk](docs/TWO_WAY_TALK.md).
+Two-way talk was verified with a Mini-class camera using real voice and tones, including with the Blink app closed. Other camera models need independent speaker testing. The included HA dashboard element provides microphone capture. See [Native push-to-talk](docs/NATIVE_PTT.md).
 
 ## Current limits
 

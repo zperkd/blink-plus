@@ -2,7 +2,7 @@
 
 Blink Plus 0.2.0 adds authenticated audio transmission to a camera during live view. Talk was verified with a Mini-class camera using a test tone and an owner's voice through a custom browser dashboard, including an independent session with the Blink app closed.
 
-A compatible client supplies microphone capture and the Talk button. HACS installs the Home Assistant integration and its talk API. The separate Home Lab dashboard used for the owner's voice test has its own microphone controls and encoder. This repository documents the integration API for client developers and command-line use.
+Blink Plus 0.3.0 includes a [native HA microphone button](NATIVE_PTT.md). This guide describes the HTTP API for other compatible clients, which supply their own microphone capture and Talk button. HACS installs the Home Assistant integration and its talk API. A separate custom dashboard also verified the HTTP path. The HTTP interface is available for client developers and command-line use.
 
 ## Update and prerequisites
 
@@ -85,6 +85,6 @@ Live voice and tone playback were verified on one Mini-class camera. Speaker sup
 
 ## Connection details
 
-Blink's live-view response supplies a per-session liveview_token. The relay preserves it in the IMMI authentication header, sends the initial sequence-zero keepalive, opens talk using message type 0x17 and waits for a fresh type 0x18 reply. Audio uses message type 0x05. A final type 0x17 closes talk.
+Blink's live-view response supplies a per-session liveview_token. The relay preserves it in the IMMI authentication header, sends the initial sequence-zero keepalive, opens talk using message type 0x17 with fixed control ID 3 and waits for a fresh type 0x18 reply. Audio uses message type 0x05. A final type 0x17 with fixed control ID 4 closes talk. Repeated holds reuse these control IDs and reset the audio sequence.
 
 These are unofficial protocol details and can change. The token remains in memory. Talk starts inside Home Assistant using the existing Blink session.

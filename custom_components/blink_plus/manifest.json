@@ -8,7 +8,8 @@
     "dependencies":  [
                          "http",
                          "media_source",
-                         "stream"
+                         "stream",
+                         "websocket_api"
                      ],
     "documentation":  "https://github.com/zperkd/blink-plus",
     "integration_type":  "hub",
@@ -20,5 +21,5 @@
     "requirements":  [
                          "blinkpy>=0.25.9"
                      ],
-    "version":  "0.2.0"
+    "version":  "0.3.0"
 }

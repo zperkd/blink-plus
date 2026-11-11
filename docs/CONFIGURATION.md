@@ -77,3 +77,10 @@ Talk uses the existing Live view option and camera entity. Open live video befor
 A compatible client captures the microphone and streams AAC-LC, 16 kHz mono, in ADTS frames to POST /api/blink_plus/talk/{entity_id}, with HA authentication and camera control permission. One talker is accepted per camera and each request is limited to 60 seconds. Browser microphone access requires HTTPS or trusted localhost.
 
 See the [complete talk guide](TWO_WAY_TALK.md) for upgrade steps, a command-line example, status codes, client lifecycle and tested camera scope.
+
+
+## Native HA microphone button
+
+For 0.3.0, register /blink_plus/frontend/blink-plus-ptt.js?v=0.3.0 as a JavaScript module resource, then add a custom:blink-plus-ptt element with your camera entity. The [native PTT guide](NATIVE_PTT.md) provides a complete live camera example.
+
+The element uses your authenticated HA session and camera control permission. The integration encodes microphone audio using HA's existing media libraries. Browser capture requires HTTPS or trusted localhost. Hold to speak, release to stop, and wait for stopping to finish before pressing again.

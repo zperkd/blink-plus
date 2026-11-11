@@ -343,6 +343,30 @@ class TalkReplyTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.wait_for(task, 1)
 
 
+class RepeatedTalkTests(unittest.IsolatedAsyncioTestCase):
+    async def test_repeated_holds_use_start_stop_control_ids_and_reset_audio(self):
+        relay = transport.NativeRelay(SimpleNamespace())
+        writer = Writer()
+        relay.stream = SimpleNamespace(target_writer=writer)
+
+        async def acknowledge():
+            relay.talk_ack.set()
+
+        writer.drain = acknowledge
+        frame = b"test audio"
+        for _ in range(3):
+            await relay.start_talk()
+            await relay.send_audio(frame)
+            await relay.stop_talk()
+        data = bytes(writer.data)
+        packets = []
+        while data:
+            length = int.from_bytes(data[5:9], "big")
+            packets.append((data[0], int.from_bytes(data[1:5], "big")))
+            data = data[9 + length :]
+        self.assertEqual(packets, [(0x17, 3), (0x05, 0), (0x17, 4)] * 3)
+
+
 class ValueTests(unittest.TestCase):
     def test_voltage_is_hundredths(self):
         self.assertEqual(

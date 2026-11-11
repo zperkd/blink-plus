@@ -15,6 +15,10 @@ jobs:
       - uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.14'
+      - name: Check frontend JavaScript syntax
+        run: |
+          node --check custom_components/blink_plus/frontend/blink-plus-ptt.js
+          node --check custom_components/blink_plus/frontend/microphone-worklet.js
       - run: pip install pytest-homeassistant==2026.11.1 blinkpy==0.25.9 numpy==2.3.2 av==19.0.0 ha-ffmpeg==3.2.2 PyTurboJPEG==1.8.3
       - run: python -m unittest discover -s tests -v
       - run: pytest -q tests/ha --asyncio-mode=auto -p no:respx -o asyncio_default_fixture_loop_scope=function

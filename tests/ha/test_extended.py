@@ -557,3 +557,98 @@ async def test_old_talk_upload_cannot_write_to_or_stop_new_session(
     relay.stop_talk.assert_not_awaited()
     relay.stream = None
     await hass.config_entries.async_unload(account.entry_id)
+
+
+def test_native_microphone_pcm_encodes_decodable_camera_audio():
+    import io
+    import math
+    from array import array
+    import av
+    from custom_components.blink_plus.microphone import AACEncoder
+
+    encoder = AACEncoder()
+    packets = []
+    for offset in range(0, 16000, 1600):
+        pcm = array(
+            "h",
+            (
+                int(4000 * math.sin(2 * math.pi * 700 * i / 16000))
+                for i in range(offset, offset + 1600)
+            ),
+        ).tobytes()
+        packets.extend(encoder.encode(pcm))
+    packets.extend(encoder.finish())
+    assert packets and all(frame[:2] == b"\xff\xf1" for frame in packets)
+    with av.open(io.BytesIO(b"".join(packets)), format="aac") as container:
+        decoded = list(container.decode(audio=0))
+    assert sum(frame.samples for frame in decoded) >= 16000
+    assert all(
+        frame.sample_rate == 16000 and frame.layout.name == "mono" for frame in decoded
+    )
+
+
+async def test_native_microphone_websocket_ownership_audio_and_cleanup(
+    hass, account, blink, hass_ws_client, hass_client, socket_enabled
+):
+    import base64
+    import asyncio
+    from custom_components.blink_plus.microphone import DATA_KEY
+
+    await hass.config_entries.async_setup(account.entry_id)
+    await hass.async_block_till_done()
+    relay = account.runtime_data.relay(blink.cameras["Test camera"])
+    relay.stream = SimpleNamespace()
+    relay.start_talk = AsyncMock()
+    relay.stop_talk = AsyncMock()
+    relay.send_audio = AsyncMock()
+    client = await hass_ws_client(hass)
+    other = await hass_ws_client(hass)
+    await client.send_json(
+        {"id": 1, "type": "blink_plus/talk/start", "entity_id": "camera.test_camera"}
+    )
+    opened = await client.receive_json()
+    assert opened["success"]
+    ident = opened["result"]["session"]
+    await other.send_json({"id": 1, "type": "blink_plus/talk/stop", "session": ident})
+    assert not (await other.receive_json())["success"]
+    http = await hass_client()
+    assert (
+        await http.post("/api/blink_plus/talk/camera.test_camera", data=adts(20))
+    ).status == 409
+    await client.send_json(
+        {
+            "id": 2,
+            "type": "blink_plus/talk/audio",
+            "session": ident,
+            "sequence": 2,
+            "samples": base64.b64encode(bytes(3200)).decode(),
+        }
+    )
+    assert not (await client.receive_json())["success"]
+    await client.send_json(
+        {
+            "id": 3,
+            "type": "blink_plus/talk/audio",
+            "session": ident,
+            "sequence": 0,
+            "samples": base64.b64encode(bytes(3200)).decode(),
+        }
+    )
+    assert (await client.receive_json())["success"]
+    await client.send_json({"id": 4, "type": "blink_plus/talk/stop", "session": ident})
+    assert (await client.receive_json())["success"]
+    assert relay.send_audio.await_count > 0
+    assert not relay.talk_lock.locked() and not hass.data[DATA_KEY]
+    await client.send_json(
+        {"id": 5, "type": "blink_plus/talk/start", "entity_id": "camera.test_camera"}
+    )
+    assert (await client.receive_json())["success"]
+    await client.close()
+    for _ in range(100):
+        if not relay.talk_lock.locked():
+            break
+        await asyncio.sleep(0.01)
+    assert not relay.talk_lock.locked() and not hass.data[DATA_KEY]
+    await other.close()
+    relay.stream = None
+    await hass.config_entries.async_unload(account.entry_id)

@@ -11,10 +11,21 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 async def async_setup(hass, config):
     from .live_http import BlinkLiveView, BlinkTalkView
     from .media_source import BlinkCloudView
+    from . import microphone
+    from pathlib import Path
+    from homeassistant.components.http import StaticPathConfig
 
     hass.http.register_view(BlinkCloudView())
     hass.http.register_view(BlinkLiveView())
     hass.http.register_view(BlinkTalkView())
+    await hass.http.async_register_static_paths(
+        [
+            StaticPathConfig(
+                "/blink_plus/frontend", str(Path(__file__).parent / "frontend"), False
+            )
+        ]
+    )
+    microphone.setup(hass)
     return True
 
 

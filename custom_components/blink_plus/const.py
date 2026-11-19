@@ -4,6 +4,7 @@ DOMAIN = "blink_plus"
 PLATFORMS = ["camera", "sensor", "binary_sensor", "switch", "button", "light"]
 DEFAULTS = {
     "scan_interval": 300,
+    "usb_clip_minutes": 0,
     "cloud_enabled": True,
     "cloud_history_days": 30,
     "cloud_max_clips": 1000,

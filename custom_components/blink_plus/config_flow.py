@@ -113,7 +113,8 @@ class BlinkOptionsFlow(OptionsFlow):
         )
         schema = {}
         for key, minimum, maximum in (
-            ("scan_interval", 60, 3600),
+            ("scan_interval", 30, 3600),
+            ("usb_clip_minutes", 0, 1440),
             ("cloud_history_days", 1, 90),
             ("cloud_max_clips", 50, 5000),
             ("cloud_refresh_seconds", 15, 600),

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+Polling leaves the Sync Module alone.
+
+- On every poll, blinkpy asked a Sync Module 2 with a USB drive for its clip list (the module scans the drive) and made the module upload every new USB clip to the cloud. While the module works on one of these, the Blink app answers "system busy" and live view can fail. Blink Plus now reads the USB clip list only when **Read the USB clip list every N minutes** is above 0 (default 0 = never) and never makes the module upload USB clips during a poll.
+- Two requests whose answer the poll already has are skipped as well: each network's state now comes from the overview (homescreen) the same poll loads, and every outdoor camera is asked for its signals (calibrated temperature) at most once an hour instead of on every poll.
+- No poll runs while one of the account's cameras is starting or showing a live view.
+- The polling interval can now be set down to 30 seconds.
+- These changes only apply to Blink Plus's own connection; the built-in Blink integration keeps blinkpy's behaviour. If a Home Assistant update ships a blinkpy without one of the replaced methods, Blink Plus logs a warning and uses blinkpy's behaviour for that part. Diagnostics list which reductions are active (`blinkpy_load_reductions`).
+
 ## 1.1.3 - 2026-11-17
 
 Motion sensors follow Blink's clip list.

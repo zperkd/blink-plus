@@ -14,6 +14,8 @@ async def async_get_config_entry_diagnostics(hass, entry):
         "scan_interval": coordinator.options["scan_interval"],
         "live_enabled": coordinator.options["live_enabled"],
         "max_live_seconds": coordinator.options["max_live_seconds"],
+        "usb_clip_minutes": coordinator.options["usb_clip_minutes"],
+        "blinkpy_load_reductions": coordinator.load_reductions,
         "active_streams": sum(
             r.stream is not None for r in coordinator.relays.values()
         ),

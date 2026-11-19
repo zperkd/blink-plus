@@ -35,6 +35,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 import logging
 
+from .blinkpy_patches import apply_blinkpy_patches
 from .const import DEFAULTS, DOMAIN
 from .transport import NativeRelay
 from .cloud import CloudClips
@@ -191,6 +192,10 @@ class BlinkCoordinator(DataUpdateCoordinator):
             session=async_get_clientsession(hass),
             callback=self.save_tokens,
         )
+        # Marks this Blink instance for the load reductions in blinkpy_patches.py:
+        # how often to read a Sync Module's USB clip list (0 = never).
+        self.api.blink_plus_usb_clip_minutes = self.options["usb_clip_minutes"]
+        self.load_reductions = apply_blinkpy_patches()
         self.cloud = CloudClips(hass, self.api, self.options, self.auth_error)
         self.relays = {}
         # Per camera serial: callbacks told the lamp state a live session reports. Kept here so a
@@ -273,6 +278,9 @@ class BlinkCoordinator(DataUpdateCoordinator):
                         < self.options["scan_interval"] + REFRESH_MARGIN_SECONDS
                     ):
                         await self._refresh_tokens()
+                    if self.data is not None and self.live_active():
+                        # The Sync Module is busy with the live view; leave it alone.
+                        return self.data
                     await self.api.refresh()
         except REAUTH_ERRORS as err:
             raise ConfigEntryAuthFailed("Blink authentication expired") from err
@@ -303,6 +311,10 @@ class BlinkCoordinator(DataUpdateCoordinator):
         for name, when in found.items():
             if name not in self.clip_times or when > self.clip_times[name]:
                 self.clip_times[name] = when
+
+    def live_active(self):
+        """Whether any camera of this account is starting or showing a live view."""
+        return any(relay.runner is not None for relay in self.relays.values())
 
     def relay(self, camera):
         key = str(camera.serial)

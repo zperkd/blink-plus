@@ -34,8 +34,12 @@
                                  "init":  {
                                               "title":  "Blink Plus settings",
                                               "description":  "Live sessions start on demand. HA may retain a stream briefly after its viewer closes. Leave stream preloading off, especially for battery cameras. Sensor polling does not wake cameras for fresh snapshots. Select pan/tilt only for cameras with a compatible motorized mount.",
+                                              "data_description":  {
+                                                                       "usb_clip_minutes":  "Only for a Sync Module 2 with a USB drive. Reading the list makes the module scan the drive, and the Blink app may show \"system busy\" meanwhile. Regular polling asks the module for nothing else."
+                                                                   },
                                               "data":  {
                                                            "scan_interval":  "Sensor polling interval (seconds)",
+                                                           "usb_clip_minutes":  "Read the USB clip list every N minutes (0 = never)",
                                                            "live_enabled":  "Enable live video",
                                                            "max_live_seconds":  "Maximum live session (seconds)",
                                                            "reconnect_cooldown":  "Cooldown after a live session times out or fails (seconds)",

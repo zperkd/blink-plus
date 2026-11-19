@@ -4,10 +4,26 @@ All integration settings are available from **Settings > Devices & services > Bl
 
 ## Polling and live video
 
-- **Polling interval:** 300 seconds by default; range 60-3600. Controls refresh state after commands; motion otherwise follows polling (see [Motion sensors](#motion-sensors)).
+- **Polling interval:** 300 seconds by default; range 30-3600. Controls refresh state after commands; motion otherwise follows polling (see [Motion sensors](#motion-sensors)). Polling does not send the Sync Module any commands (see [Sync Module load](#sync-module-load)).
+- **Read the USB clip list every N minutes:** 0 (never) by default; range 0-1440. Only matters for a Sync Module 2 with a USB drive.
 - **Live view enabled:** on by default. Disable to prevent new live streams and local recordings.
 - **Maximum live duration:** 120 seconds; range 15-300.
 - **Reconnect cooldown:** 30 seconds; range 5-300. Applies after a session reaches its time limit, fails, or is ended by the camera, so a player that keeps reconnecting cannot wake the camera repeatedly. Closing live view normally does not start the cooldown.
+
+## Sync Module load
+
+A Sync Module works on one request at a time. While it is busy, the Blink app shows "system busy" and live view can fail. Blink Plus keeps its polling away from the module and skips requests whose answer the same poll already has:
+
+| On every poll, blinkpy would | Blink Plus instead |
+|---|---|
+| Request each network's state (armed, online) separately | Takes it from Blink's overview (homescreen), which the same poll already loads |
+| Ask a Sync Module 2 for its USB clip list, which makes the module scan the drive | Asks only every N minutes as configured; never with the default 0 |
+| Make the module upload every new USB clip to the cloud | Never |
+| Ask every outdoor camera for its signals (calibrated temperature) | At most once an hour per camera |
+
+No poll runs while a camera of the account is starting or showing a live view.
+
+These replacements apply only to Blink Plus's own connection; the built-in Blink integration is not affected. blinkpy ships with Home Assistant, so an update can change it. If a replaced method is missing, Blink Plus logs a warning and keeps blinkpy's behaviour for that part. Diagnostics list which reductions are active (`blinkpy_load_reductions`).
 
 ## Local recording
 

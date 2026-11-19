@@ -43,6 +43,24 @@ class BlinkpyContractTests(unittest.TestCase):
     def test_camera_can_open_a_live_stream(self):
         self.assertTrue(inspect.iscoroutinefunction(BlinkCamera.init_livestream))
 
+    def test_load_reductions_find_what_they_replace(self):
+        # blinkpy_patches.py replaces these; refresh must still go through them.
+        from blinkpy.sync_module import BlinkSyncModule, LocalStorageMediaItem
+
+        for cls, name in (
+            (LocalStorageMediaItem, "prepare_download"),
+            (BlinkSyncModule, "update_local_storage_manifest"),
+            (BlinkSyncModule, "get_network_info"),
+            (BlinkCamera, "get_sensor_info"),
+        ):
+            self.assertTrue(inspect.iscoroutinefunction(getattr(cls, name)), name)
+        refresh = inspect.getsource(BlinkSyncModule.refresh)
+        self.assertIn("self.get_network_info()", refresh)
+        self.assertIn("self.update_local_storage_manifest()", refresh)
+        self.assertIn(
+            "prepare_download(", inspect.getsource(BlinkSyncModule.check_new_videos)
+        )
+
     def test_own_token_refresh_has_what_it_uses(self):
         # coordinator.py refreshes tokens itself and then finishes Blink.start().
         from blinkpy.auth import Auth
